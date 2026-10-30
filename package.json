@@ -1,0 +1,10 @@
+{
+  "name": "sejong-timetable",
+  "version": "2.0.0",
+  "private": true,
+  "description": "세종 시간표 — 세종시 모든 학교 시간표(NEIS) + 같은 반 교시 메모",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" },
+  "dependencies": {}
+}
