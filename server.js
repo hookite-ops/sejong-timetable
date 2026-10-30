@@ -480,6 +480,7 @@ async function api(req, res, u) {
     catch (e) {   // 원인만 짧게 (토큰·키 같은 비밀은 안 나감)
       const m = String(e.message).match(/"status":\s*"([A-Z_]+)"/);
       out.memoStore = 'error'; out.reason = (e.status ? e.status + ' ' : '') + (m ? m[1] : String(e.message).slice(0, 80));
+      const mm = String(e.message).match(/"message":\s*"([^"]{0,200})/); if (mm) out.detail = mm[1];
     }
     return send(res, 200, out);
   }
