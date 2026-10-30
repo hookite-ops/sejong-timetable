@@ -473,7 +473,16 @@ async function api(req, res, u) {
     if (!d) throw httpErr(400, '날짜가 이상해요 (오늘 앞뒤 1년만 볼 수 있어요)');
     return send(res, 200, await getTimetable(sc, cls, mondayOf(d)));
   }
-  if (p === '/api/status') return send(res, 200, { store: store.mode, schools: SCH.list ? SCH.list.length : null });
+  if (p === '/api/status') {
+    const out = { store: store.mode, schools: SCH.list ? SCH.list.length : null, neisKey: !!NEIS_KEY };
+    if (store.root) out.project = store.root.split('/')[1];
+    try { await store.list('__ping__'); out.memoStore = 'ok'; }
+    catch (e) {   // 원인만 짧게 (토큰·키 같은 비밀은 안 나감)
+      const m = String(e.message).match(/"status":\s*"([A-Z_]+)"/);
+      out.memoStore = 'error'; out.reason = (e.status ? e.status + ' ' : '') + (m ? m[1] : String(e.message).slice(0, 80));
+    }
+    return send(res, 200, out);
+  }
 
   if (p === '/api/memos' && req.method === 'GET') {
     const { sc, cls } = await resolveClass(q);
