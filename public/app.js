@@ -61,7 +61,12 @@ const ready = () => !!(S.school && S.cls);
 const clsQS = () => `school=${encodeURIComponent(S.school.code)}&grade=${S.cls.grade}&cls=${encodeURIComponent(S.cls.id)}`;
 const clsName = c => c ? ((c.short ? c.short + ' ' : '') + (c.gradeLabel || c.grade + '학년') + ' ' + c.label) : '';
 
-function applyTheme(){ if (S.theme === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = S.theme; }
+function applyTheme(){
+  if (S.theme === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = S.theme;
+  // 상태바 색도 고른 테마에 맞추기 (자동이면 기기 설정을 따름)
+  document.querySelectorAll('meta[name=theme-color]').forEach(m => { const dark = m.media.includes('dark');
+    if (S.theme === 'auto') m.content = dark ? '#0e141b' : '#f3f5f2'; else m.content = S.theme === 'dark' ? '#0e141b' : '#f3f5f2'; });
+}
 
 let toastT;
 function toast(msg){
