@@ -19,6 +19,7 @@ const PUB = path.join(__dirname, 'public');
 const DATA_DIR = env.DATA_DIR || path.join(__dirname, 'data');
 const SALT = env.MEMO_SALT || 'sejong-timetable-memo-v1';
 const COL = env.MEMO_COLLECTION || 'memos';
+const BOARD_COL = env.BOARD_COLLECTION || 'board';   // 우리 반 게시판(공지·준비물·일정·투표)
 const META = 'http://metadata.google.internal/computeMetadata/v1/';
 const MIN = 60e3, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const LIM = {
@@ -33,6 +34,10 @@ const LIM = {
   perCell: 20,                                // 한 교시 칸에 최대 메모 수
   hideAt: 3,                                  // 신고 3회면 숨김
   text: 200, nick: 12,
+  // 우리 반 게시판
+  boardPerKey: 20,                             // 한 반에 1분 20개
+  boardMax: { notice: 40, item: 80, event: 100, poll: 20 },   // 종류별로 한 반에 동시에 있을 수 있는 수
+  votePerDevice: 30, votePerIp: 150,           // 1분
 };
 
 // ---------- 날짜 (항상 한국 시간) ----------
@@ -273,35 +278,42 @@ function applyReport(d, tokMark, ipMark) {
   return { reporters: [...d.reporters, tokMark], ipVotes: [...d.ipVotes, ipMark], reports, hidden: reports >= LIM.hideAt, counted: true };
 }
 
-// ---------- 메모 저장소 ----------
+// ---------- 저장소 (메모·게시판 공통) ----------
+function normDoc(o) { o.reporters = o.reporters || []; o.ipVotes = o.ipVotes || []; o.reports = o.reports || 0; o.hidden = !!o.hidden;
+  if (o.kind === 'poll') { o.options = o.options || []; o.votes = o.votes || []; } return o; }
+function reportMut(d, tokMark, ipMark) {
+  const r = applyReport(d, tokMark, ipMark);
+  if (r.already || r.noop) return { result: r };
+  return { patch: { reporters: r.reporters, ipVotes: r.ipVotes, reports: r.reports, hidden: r.hidden }, result: { hidden: r.hidden, counted: r.counted } };
+}
+const clone = d => JSON.parse(JSON.stringify(d));
 class LocalStore {
-  constructor(dir) {
-    this.mode = 'local';
-    this.file = path.join(dir, 'memos.json');
+  constructor(dir, col = 'memos') {
+    this.mode = 'local'; this.col = col;
+    this.file = path.join(dir, col + '.json');
     this.docs = new Map();
     try { fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
     try { for (const d of JSON.parse(fs.readFileSync(this.file, 'utf8'))) this.docs.set(d.id, d); }
-    catch (e) { if (e.code !== 'ENOENT') console.warn('memos.json 읽기 실패:', e.message); }
+    catch (e) { if (e.code !== 'ENOENT') console.warn(this.col + '.json 읽기 실패:', e.message); }
   }
-  async list(key) { return [...this.docs.values()].filter(d => d.key === key).map(d => ({ ...d, reporters: [...d.reporters] })); }
-  async get(id) { const d = this.docs.get(id); return d ? { ...d, reporters: [...d.reporters], ipVotes: [...(d.ipVotes || [])] } : null; }
-  async create(doc) { this.docs.set(doc.id, { ...doc }); this.save(); }
+  async list(key) { return [...this.docs.values()].filter(d => d.key === key).map(d => normDoc(clone(d))); }
+  async get(id) { const d = this.docs.get(id); return d ? normDoc(clone(d)) : null; }
+  async create(doc) { this.docs.set(doc.id, clone(doc)); this.save(); }
   async remove(id) { this.docs.delete(id); this.save(); }
-  async report(id, tokMark, ipMark) {
+  // fn(문서 복사본) → { patch?, result }. patch가 있으면 그 필드만 바꿔 저장
+  async mutate(id, fn) {
     const d = this.docs.get(id);
     if (!d) return null;
-    d.ipVotes = d.ipVotes || [];
-    const r = applyReport(d, tokMark, ipMark);
-    if (r.already || r.noop) return r;
-    Object.assign(d, { reporters: r.reporters, ipVotes: r.ipVotes, reports: r.reports, hidden: r.hidden });
-    this.save();
-    return { hidden: r.hidden, counted: r.counted };
+    const r = fn(normDoc(clone(d)));
+    if (r.patch) { Object.assign(d, clone(r.patch)); this.save(); }
+    return r.result;
   }
+  async report(id, tokMark, ipMark) { return this.mutate(id, d => reportMut(d, tokMark, ipMark)); }
   save() { clearTimeout(this.t); this.t = setTimeout(() => this.flush(), 150); }
   flush() {
     clearTimeout(this.t);
     try { const tmp = this.file + '.tmp'; fs.writeFileSync(tmp, JSON.stringify([...this.docs.values()])); fs.renameSync(tmp, this.file); }
-    catch (e) { console.warn('memos.json 저장 실패:', e.message); }
+    catch (e) { console.warn(this.col + '.json 저장 실패:', e.message); }
   }
 }
 
@@ -312,19 +324,18 @@ const fsRead = v => !v ? null : 'stringValue' in v ? v.stringValue : 'integerVal
   : 'timestampValue' in v ? Date.parse(v.timestampValue) : 'doubleValue' in v ? v.doubleValue : 'arrayValue' in v ? (v.arrayValue.values || []).map(fsRead) : null;
 function toFields(d) {
   const f = {};
-  for (const k of ['key', 'school', 'grade', 'cls', 'ymd', 'period', 'text', 'nick', 'ownerHash', 'reports', 'reporters', 'ipVotes', 'hidden']) f[k] = fsVal(d[k]);
+  for (const k of Object.keys(d)) if (k !== 'id' && k !== 'updateTime' && k !== 'createdAt' && d[k] !== undefined) f[k] = fsVal(d[k]);
   f.createdAt = { timestampValue: new Date(d.createdAt).toISOString() };
   return f;
 }
 function fromDoc(doc) {
   const f = doc.fields || {}, o = { id: doc.name.split('/').pop(), updateTime: doc.updateTime };
   for (const k in f) o[k] = fsRead(f[k]);
-  o.reporters = o.reporters || []; o.ipVotes = o.ipVotes || []; o.reports = o.reports || 0; o.hidden = !!o.hidden;
-  return o;
+  return normDoc(o);
 }
 class FirestoreStore {
-  constructor(project, emulator) {
-    this.mode = emulator ? 'firestore-emulator' : 'firestore';
+  constructor(project, emulator, col = COL) {
+    this.mode = emulator ? 'firestore-emulator' : 'firestore'; this.col = col;
     this.emulator = emulator;
     this.root = `projects/${project}/databases/(default)/documents`;
     this.base = (emulator ? `http://${emulator}/v1/` : 'https://firestore.googleapis.com/v1/') + this.root;
@@ -353,58 +364,64 @@ class FirestoreStore {
   }
   async list(key) {
     const res = await this.req('POST', this.base + ':runQuery', { structuredQuery: {
-      from: [{ collectionId: COL }],
+      from: [{ collectionId: this.col }],
       where: { fieldFilter: { field: { fieldPath: 'key' }, op: 'EQUAL', value: { stringValue: key } } },
       limit: 500 } });
     return (Array.isArray(res) ? res : []).filter(x => x.document).map(x => fromDoc(x.document));
   }
   async get(id) {
-    try { return fromDoc(await this.req('GET', `${this.base}/${COL}/${id}`)); }
+    try { return fromDoc(await this.req('GET', `${this.base}/${this.col}/${id}`)); }
     catch (e) { if (e.status === 404) return null; throw e; }
   }
-  async create(doc) { await this.req('POST', `${this.base}/${COL}?documentId=${doc.id}`, { fields: toFields(doc) }); }
-  async remove(id) { await this.req('DELETE', `${this.base}/${COL}/${id}`); }
-  async report(id, tokMark, ipMark) {
-    for (let i = 0; i < 4; i++) {   // 동시에 신고가 몰려도 숫자가 안 꼬이게: updateTime 조건부 수정
+  async create(doc) { await this.req('POST', `${this.base}/${this.col}?documentId=${doc.id}`, { fields: toFields(doc) }); }
+  async remove(id) { await this.req('DELETE', `${this.base}/${this.col}/${id}`); }
+  // 동시에 여러 명이 신고·투표해도 숫자가 안 꼬이게: updateTime 조건부 수정, 충돌이면 다시 읽어서 재시도
+  async mutate(id, fn) {
+    for (let i = 0; i < 5; i++) {
       const d = await this.get(id);
       if (!d) return null;
-      const r = applyReport(d, tokMark, ipMark);
-      if (r.already || r.noop) return r;
-      const q = 'updateMask.fieldPaths=reports&updateMask.fieldPaths=reporters&updateMask.fieldPaths=ipVotes&updateMask.fieldPaths=hidden&currentDocument.updateTime=' + encodeURIComponent(d.updateTime);
+      const r = fn(d);
+      if (!r.patch) return r.result;
+      const keys = Object.keys(r.patch), fields = {};
+      for (const k of keys) fields[k] = fsVal(r.patch[k]);
+      const q = keys.map(k => 'updateMask.fieldPaths=' + encodeURIComponent(k)).join('&') + '&currentDocument.updateTime=' + encodeURIComponent(d.updateTime);
       try {
-        await this.req('PATCH', `${this.base}/${COL}/${id}?${q}`, { fields: { reports: fsVal(r.reports), reporters: fsVal(r.reporters), ipVotes: fsVal(r.ipVotes), hidden: fsVal(r.hidden) } });
-        return { hidden: r.hidden, counted: r.counted };
+        await this.req('PATCH', `${this.base}/${this.col}/${id}?${q}`, { fields });
+        return r.result;
       } catch (e) {
-        // 그 사이 다른 신고로 문서가 바뀐 경우(precondition 실패·충돌)만 다시 읽어서 재시도
         const conflict = (e.status === 400 && /FAILED_PRECONDITION/.test(e.message)) || (e.status === 409 && /ABORTED/.test(e.message));
         if (!conflict) throw e;
       }
     }
-    throw new Error('신고 처리 충돌');
+    throw new Error('동시 수정 충돌');
   }
+  async report(id, tokMark, ipMark) { return this.mutate(id, d => reportMut(d, tokMark, ipMark)); }
 }
+// 컬렉션 이름을 받아 저장소를 만드는 함수를 돌려줌 (Cloud Run이면 Firestore, 아니면 로컬 파일)
 async function pickStore() {
-  if (env.FIRESTORE_EMULATOR_HOST) return new FirestoreStore(env.FIRESTORE_PROJECT || env.GOOGLE_CLOUD_PROJECT || 'demo-sejong', env.FIRESTORE_EMULATOR_HOST);
+  if (env.FIRESTORE_EMULATOR_HOST) { const p = env.FIRESTORE_PROJECT || env.GOOGLE_CLOUD_PROJECT || 'demo-sejong'; return col => new FirestoreStore(p, env.FIRESTORE_EMULATOR_HOST, col); }
   if (env.MEMO_STORE !== 'local') {
     try {
       const r = await fetch(META + 'project/project-id', { headers: { 'Metadata-Flavor': 'Google' }, signal: AbortSignal.timeout(1500) });
-      if (r.ok) { const p = (await r.text()).trim(); if (p) return new FirestoreStore(p); }
+      if (r.ok) { const p = (await r.text()).trim(); if (p) return col => new FirestoreStore(p, null, col); }
     } catch (e) { /* 메타데이터 서버 없음 = 로컬 */ }
   }
-  return new LocalStore(DATA_DIR);
+  return col => new LocalStore(DATA_DIR, col);
 }
-let store;
+let store, board;
 
 // 같은 반·주 메모 목록은 25초 캐시 + 동시 요청 합치기 (Firestore 읽기 비용 절약)
 // 이 인스턴스에서 쓰기·삭제·신고하면 바로 무효화(dropMemos). 다른 인스턴스의 새 메모는 최대 25초 늦게 보임
 const MEMO_TTL = 25e3, memoCache = new Map(), memoPending = new Map(), memoGen = new Map();
-async function listMemos(key) {
+const listMemos = key => listOf(store, key), dropMemos = key => dropList(store, key);
+async function listOf(st, rawKey) {
+  const key = st.col + '#' + rawKey;
   const c = memoCache.get(key);
   if (c && Date.now() - c.t < MEMO_TTL) return c.list;
   if (memoPending.has(key)) return memoPending.get(key);
   costGate('store');
   const gen = memoGen.get(key) || 0;
-  const job = store.list(key).then(list => {
+  const job = st.list(rawKey).then(list => {
     if ((memoGen.get(key) || 0) === gen) {   // 읽는 사이 쓰기가 있었으면 캐시에 넣지 않음
       memoCache.delete(key); memoCache.set(key, { t: Date.now(), list });
       if (memoCache.size > 500) memoCache.delete(memoCache.keys().next().value);
@@ -414,12 +431,34 @@ async function listMemos(key) {
   memoPending.set(key, job);
   return job;
 }
-function dropMemos(key) {
+function dropList(st, rawKey) {
+  const key = st.col + '#' + rawKey;
   memoCache.delete(key); memoPending.delete(key);
   memoGen.set(key, (memoGen.get(key) || 0) + 1);
   if (memoGen.size > 2000) memoGen.delete(memoGen.keys().next().value);
 }
 const memoKey = (school, grade, cls, mon) => [school, grade, cls, ymdOf(mon)].join('|');
+// 우리 반 게시판: 학년도마다 새로 (3월에 반이 바뀌므로)
+const boardKey = (school, grade, cls) => [school, grade, cls, 'y' + schoolYear()].join('|');
+const KINDS = ['notice', 'item', 'event', 'poll'];
+const TAGS = ['시험', '수행평가', '숙제', '행사', '기타'];
+const VOTE_ID = me => me.slice(0, 24);
+function pubPost(d, me) {
+  const o = { id: d.id, kind: d.kind, text: d.text, nick: d.nick, at: d.createdAt, ymd: d.ymd || '', tag: d.tag || '',
+    mine: !!me && d.ownerHash === me, reported: !!me && d.reporters.includes('t:' + me) };
+  if (d.kind === 'poll') {
+    const counts = d.options.map(() => 0); let myVote = -1;
+    for (const v of d.votes) { const [i, who] = String(v).split(':'); if (counts[+i] !== undefined) counts[+i]++; if (me && who === VOTE_ID(me)) myVote = +i; }
+    Object.assign(o, { options: d.options, counts, myVote, total: counts.reduce((a, b) => a + b, 0) });
+  }
+  return o;
+}
+// 지난 것은 목록에서 빼기: 준비물·일정은 날짜가 14일 지나면, 공지는 60일, 투표는 30일
+function stillShown(d, todayYmd) {
+  const age = Date.now() - d.createdAt;
+  if (d.kind === 'item' || d.kind === 'event') return !d.ymd || d.ymd >= ymdOf(addDays(parseYmd(todayYmd), -14));
+  return age < (d.kind === 'notice' ? 60 : 30) * DAY;
+}
 const pub = (d, me) => ({ id: d.id, ymd: d.ymd, period: d.period, text: d.text, nick: d.nick, at: d.createdAt,
   mine: !!me && d.ownerHash === me, reported: !!me && d.reporters.includes('t:' + me) });
 
@@ -554,6 +593,98 @@ async function api(req, res, u) {
     dropMemos(d.key);
     return send(res, 200, { ok: true, already: !!r.already, hidden: !!r.hidden, counted: !!r.counted });
   }
+  // ---------- 우리 반 게시판 ----------
+  if (p === '/api/board' && req.method === 'GET') {
+    const { sc, cls } = await resolveClass(q);
+    const tok = req.headers['x-memo-token'], me = validToken(tok) ? hash(tok) : null;
+    const today = ymdOf(kst());
+    const list = (await listOf(board, boardKey(sc.code, cls.grade, cls.id))).filter(d => !d.hidden && stillShown(d, today))
+      .sort((a, b) => b.createdAt - a.createdAt).map(d => pubPost(d, me));
+    return send(res, 200, { posts: list, today });
+  }
+  if (p === '/api/board' && req.method === 'POST') {
+    if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
+    const b = await readJson(req);
+    if (!validToken(b.token)) throw httpErr(400, '기기 토큰이 없어요');
+    const ip = clientIp(req);
+    const rateMsg = '너무 빨리 쓰고 있어요. 1분 뒤에 다시 해 주세요';
+    const lim = [['p:t:' + b.token, LIM.postPerDevice, MIN], ['p:i:' + ip, LIM.postPerIp, MIN], ['p:ih:' + ip, LIM.postPerIpHour, HOUR]];
+    const limOk = count => lim.every(([k, max, win]) => rateOk(k, max, false, win)) && (!count || lim.every(([k, max, win]) => rateOk(k, max, true, win)));
+    if (!limOk(false)) throw httpErr(429, rateMsg);
+    const { sc, cls } = await resolveClass({ school: String(b.school || ''), grade: String(b.grade ?? ''), cls: String(b.cls ?? '') });
+    const kind = String(b.kind || '');
+    if (!KINDS.includes(kind)) throw httpErr(400, '종류가 이상해요');
+    const MAXLEN = { notice: 200, item: 60, event: 40, poll: 80 };
+    const t = cleanText(b.text, MAXLEN[kind], kind !== 'notice');
+    if (t.tooLong) throw httpErr(400, `${MAXLEN[kind]}자까지 쓸 수 있어요`);
+    if (!t.text) throw httpErr(400, '내용을 써 주세요');
+    const n = cleanText(b.nick, LIM.nick, true);
+    if (n.tooLong) throw httpErr(400, `닉네임은 ${LIM.nick}자까지예요`);
+    const doc = { id: crypto.randomBytes(10).toString('hex'), key: boardKey(sc.code, cls.grade, cls.id), kind, school: sc.code, grade: cls.grade, cls: cls.id,
+      text: t.text, nick: n.text || '익명', ymd: '', tag: '', createdAt: Date.now(), ownerHash: hash(b.token), reports: 0, reporters: [], ipVotes: [], hidden: false };
+    if (kind === 'item' || kind === 'event') {
+      const day = parseYmd(String(b.ymd || '')), today = parseYmd(ymdOf(kst()));
+      if (!day) throw httpErr(400, '날짜를 골라 주세요');
+      if (day < addDays(today, kind === 'item' ? -1 : 0) || day > addDays(today, 250)) throw httpErr(400, '날짜가 너무 멀거나 지났어요');
+      doc.ymd = ymdOf(day);
+    }
+    if (kind === 'event') {
+      if (!TAGS.includes(b.tag)) throw httpErr(400, '종류(시험·수행평가 등)를 골라 주세요');
+      doc.tag = b.tag;
+    }
+    if (kind === 'poll') {
+      const opts = Array.isArray(b.options) ? b.options.map(o => cleanText(o, 30, true)) : [];
+      if (opts.some(o => o.tooLong)) throw httpErr(400, '선택지는 30자까지예요');
+      const clean = [...new Set(opts.map(o => o.text).filter(Boolean))];
+      if (clean.length < 2 || clean.length > 5) throw httpErr(400, '선택지는 2~5개예요');
+      doc.options = clean; doc.votes = [];
+    }
+    const key = doc.key;
+    if (!rateOk('b:k:' + key, LIM.boardPerKey, false)) throw httpErr(429, '우리 반에 글이 너무 빨리 올라오고 있어요. 잠시 뒤에 해 주세요');
+    const existing = (await listOf(board, key)).filter(d => !d.hidden && d.kind === kind && stillShown(d, ymdOf(kst())));
+    if (existing.length >= LIM.boardMax[kind]) throw httpErr(429, '이 종류 글이 너무 많아요. 지난 글을 지워 주세요');
+    if (!limOk(true) || !rateOk('b:k:' + key, LIM.boardPerKey)) throw httpErr(429, rateMsg);
+    await board.create(doc);
+    dropList(board, key);
+    return send(res, 201, { post: pubPost(normDoc(doc), doc.ownerHash) });
+  }
+  m = p.match(/^\/api\/board\/([a-f0-9]{20})(\/report|\/vote)?$/);
+  if (m && ((req.method === 'DELETE' && !m[2]) || (req.method === 'POST' && m[2]))) {
+    if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
+    const b = await readJson(req);
+    if (!validToken(b.token)) throw httpErr(400, '기기 토큰이 없어요');
+    const me = hash(b.token), ip = clientIp(req);
+    const d = await board.get(m[1]);
+    if (!d || d.hidden) throw httpErr(404, '이미 지워진 글이에요');
+    if (!m[2]) {
+      if (d.ownerHash !== me) throw httpErr(403, '내가 쓴 글만 지울 수 있어요');
+      await board.remove(d.id); dropList(board, d.key);
+      return send(res, 200, { ok: true });
+    }
+    if (m[2] === '/report') {
+      if (!rateOk('r:i:' + ip, LIM.reportPerIp)) throw httpErr(429, '신고가 너무 많아요. 잠시 뒤에 해 주세요');
+      if (d.ownerHash === me) throw httpErr(400, '내 글은 신고 대신 지우면 돼요');
+      const r = await board.report(d.id, 't:' + me, 'i:' + hash('ip:' + ip));
+      if (!r) throw httpErr(404, '이미 지워진 글이에요');
+      dropList(board, d.key);
+      return send(res, 200, { ok: true, already: !!r.already, hidden: !!r.hidden, counted: !!r.counted });
+    }
+    // 투표: 기기 하나에 한 표, 다시 누르면 바꾸기, -1이면 취소
+    if (d.kind !== 'poll') throw httpErr(400, '투표가 아니에요');
+    if (!rateOk('v:t:' + b.token, LIM.votePerDevice) || !rateOk('v:i:' + ip, LIM.votePerIp)) throw httpErr(429, '너무 빨리 누르고 있어요');
+    const choice = Number.isInteger(b.choice) ? b.choice : -2;
+    if (choice < -1 || choice >= d.options.length) throw httpErr(400, '선택지가 이상해요');
+    const vid = VOTE_ID(me);
+    const r = await board.mutate(d.id, x => {
+      const votes = x.votes.filter(v => String(v).split(':')[1] !== vid);
+      if (choice >= 0) { if (votes.length >= 300) return { result: { full: true } }; votes.push(choice + ':' + vid); }
+      return { patch: { votes }, result: { doc: { ...x, votes } } };
+    });
+    if (!r) throw httpErr(404, '이미 지워진 글이에요');
+    if (r.full) throw httpErr(429, '투표 인원이 꽉 찼어요');
+    dropList(board, d.key);
+    return send(res, 200, { post: pubPost(r.doc, me) });
+  }
   throw httpErr(404, '없는 주소');
 }
 
@@ -590,10 +721,11 @@ const server = http.createServer(async (req, res) => {
 });
 
 (async () => {
-  store = await pickStore();
+  const make = await pickStore();
+  store = make(COL); board = make(BOARD_COL);
   server.listen(PORT, () => console.log(`세종 시간표 서버 :${PORT} (메모 저장: ${store.mode})`));
   getSchools().catch(e => console.warn('학교 목록 미리 받기 실패:', e.message));
 })();
-const bye = () => { if (store && store.flush) store.flush(); process.exit(0); };
+const bye = () => { for (const st of [store, board]) if (st && st.flush) st.flush(); process.exit(0); };
 process.on('SIGTERM', bye);
 process.on('SIGINT', bye);

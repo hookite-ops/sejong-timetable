@@ -82,10 +82,15 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;m
 .now.idle .nmemo em{background:var(--memo-bg);color:var(--memo)}
 .now.cta{border:2px dashed var(--accent);color:var(--accent)}
 
-.days{display:flex;gap:6px;margin-bottom:12px}
+.daysw{position:relative;margin-bottom:12px}
+.days{display:flex;gap:6px;position:relative}
+.dpill{position:absolute;left:0;top:0;bottom:0;border-radius:14px;background:var(--ink);transition:transform 380ms var(--ease-drawer);pointer-events:none;opacity:0}
+.dpill.on{opacity:1}
 .day{flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:7px 0 6px;text-align:center;font-size:12.5px;color:var(--sub);position:relative;min-height:48px}
 .day b{display:block;font-size:17px;color:var(--ink);font-weight:700}
-.day.sel{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.day{transition:color 200ms var(--ease-out),transform 120ms var(--ease-out)}
+.day b{transition:color 200ms var(--ease-out)}
+.day.sel{background:transparent;border-color:transparent;color:var(--bg);z-index:1}
 .day.sel b{color:var(--bg)}
 .day.today::after{content:'';position:absolute;left:50%;bottom:4px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--accent)}
 .day .dm{position:absolute;top:4px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--memo)}
@@ -124,7 +129,11 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;m
 .grid td .mb{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--memo);color:#fff;font-size:10.5px;font-style:normal;line-height:17px;font-weight:700}
 .grid .ghint{font-size:12.5px;color:var(--sub);text-align:center;margin-top:10px}
 body.week .grid{display:block}
-body.week .days,body.week .list{display:none}
+body.week .daysw,body.week .list{display:none}
+/* 우리 반 */
+.board{display:none}
+body.mboard .board{display:block}
+body.mboard .daysw,body.mboard .list,body.mboard .grid,body.mboard .weeknav,body.mboard .now,body.mboard .dstrip{display:none}
 
 .weeknav{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-size:14px;color:var(--sub)}
 .weeknav button{width:44px;height:40px;border-radius:12px;font-size:24px;line-height:1;color:var(--ink)}
@@ -134,9 +143,11 @@ body.week .days,body.week .list{display:none}
 .foot{margin-top:14px;margin-bottom:8px;font-size:12.5px;color:var(--sub);text-align:center}
 .foot.warn{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:9px 12px;text-align:left}
 
-.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 14px);display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px;box-shadow:0 8px 28px rgba(0,0,0,.16);z-index:5}
-.tabbar button{padding:11px 22px;white-space:nowrap;border-radius:999px;font-weight:700;font-size:15px;color:var(--sub)}
-.tabbar button.on{background:var(--ink);color:var(--bg)}
+.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 14px);display:grid;grid-template-columns:repeat(4,74px);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px;box-shadow:0 8px 28px rgba(0,0,0,.16);z-index:5}
+.tabbar button{position:relative;z-index:1;padding:11px 0;white-space:nowrap;border-radius:999px;font-weight:700;font-size:15px;color:var(--sub);transition:color 220ms var(--ease-out),transform 120ms var(--ease-out)}
+.tabbar button.on{color:var(--bg)}
+.tabbar .pill{position:absolute;left:5px;top:5px;bottom:5px;width:74px;border-radius:999px;background:var(--ink);transition:transform 420ms var(--ease-drawer)}
+.tabbar button .nb{position:absolute;top:6px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--memo)}
 
 .spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:r .8s linear infinite;vertical-align:-2px}
 @keyframes r{to{transform:rotate(360deg)}}
@@ -238,6 +249,94 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
 .okt.on{border-color:var(--accent);color:var(--accent);font-weight:700}
 .okt.on i{background:var(--accent);border-color:var(--accent)}
 .okt.on i::after{content:'✓';color:var(--accent-ink);font-size:14px}
+
+/* ---------- D-day 줄 (하루·한 주 화면) ---------- */
+.dstrip{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:-4px -16px 12px;padding:2px 16px;scroll-snap-type:x proximity}
+.dstrip::-webkit-scrollbar{display:none}
+.dstrip:empty{display:none}
+.dchip{flex:none;display:flex;align-items:center;gap:7px;padding:7px 12px 7px 8px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:13.5px;scroll-snap-align:start;max-width:78%}
+.dchip b{font-size:12px;font-weight:800;padding:3px 7px;border-radius:999px;color:#fff;background:var(--tc,#6b7280);font-variant-numeric:tabular-nums;flex:none}
+.dchip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dchip.item b{background:var(--accent)}
+/* 종류 색 */
+.t-시험{--tc:#e03131}.t-수행평가{--tc:#7048e8}.t-숙제{--tc:#1971c2}.t-행사{--tc:#e8590c}.t-기타{--tc:#5c7a6b}
+
+/* ---------- 우리 반 화면 ---------- */
+.bhead{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 12px}
+.bhead h3{margin:0;font-size:20px;letter-spacing:-.4px}
+.bhead small{display:block;color:var(--sub);font-size:13px;font-weight:500}
+.addb{padding:10px 16px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:14.5px;box-shadow:var(--shadow)}
+.bsec{margin:18px 2px 8px;display:flex;align-items:baseline;justify-content:space-between;font-size:14px;color:var(--sub);font-weight:700}
+.bsec button{font-size:13px;color:var(--accent);font-weight:700;padding:6px 4px}
+.bempty{background:var(--card);border:1px dashed var(--line);border-radius:16px;padding:16px;text-align:center;color:var(--sub);font-size:13.5px}
+.bempty button{display:block;margin:8px auto 0;color:var(--accent);font-weight:700;padding:6px 10px}
+/* D-day 카드 */
+.dcards{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:2px 16px 6px;scroll-snap-type:x mandatory;overscroll-behavior-x:contain}
+.dcards::-webkit-scrollbar{display:none}
+.dcard{flex:none;width:150px;scroll-snap-align:start;border-radius:20px;padding:14px;color:#fff;background:var(--tc,#5c7a6b);position:relative;overflow:hidden;box-shadow:var(--shadow);text-align:left}
+.dcard::before{content:'';position:absolute;right:-30px;top:-30px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.14)}
+.dcard .dt{font-size:12px;font-weight:700;opacity:.9;display:flex;justify-content:space-between}
+.dcard .dn{font-size:34px;font-weight:800;letter-spacing:-1px;line-height:1.05;margin:8px 0 6px;font-variant-numeric:tabular-nums}
+.dcard .tt{font-size:15px;font-weight:700;line-height:1.25;word-break:keep-all;min-height:38px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.dcard .dd{font-size:12px;opacity:.85;margin-top:6px}
+.dcard.today .dn::after{content:'';display:inline-block;width:9px;height:9px;border-radius:50%;background:#fff;margin-left:6px;vertical-align:middle;animation:pulse 1.6s var(--ease-out) infinite}
+@keyframes pulse{0%{transform:scale(.8);opacity:1}70%{transform:scale(1.6);opacity:0}100%{transform:scale(1.6);opacity:0}}
+/* 카드 공통 */
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:13px 14px;margin-bottom:8px}
+.pcard p{margin:0;font-size:16px;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
+.pmeta{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;color:var(--sub)}
+.pmeta b{color:var(--ink);font-weight:500;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pmeta .sp{flex:1}
+.pmeta button{font-size:12.5px;color:var(--sub);padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);min-height:32px}
+.pmeta button.arm{background:var(--warn);color:#fff;border-color:var(--warn)}
+.pcard.notice{border-left:4px solid var(--accent)}
+.pcard.notice .nt{font-size:11.5px;font-weight:800;color:var(--accent);margin-bottom:4px;letter-spacing:.3px}
+/* 준비물 체크 */
+.igroup{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:4px 6px;margin-bottom:8px;position:relative}
+.igroup h4{margin:8px 8px 2px;font-size:13px;color:var(--sub);display:flex;justify-content:space-between}
+.igroup h4 em{font-style:normal;color:var(--accent)}
+.irow{display:flex;align-items:center;gap:10px;width:100%;padding:10px 8px;text-align:left;border-radius:12px;min-height:46px}
+.irow .ck{flex:none;width:24px;height:24px;border-radius:8px;border:2px solid var(--line);display:grid;place-items:center;transition:background-color 180ms var(--ease-out),border-color 180ms var(--ease-out)}
+.irow .ck::after{content:'';width:10px;height:6px;border-left:2.5px solid var(--accent-ink);border-bottom:2.5px solid var(--accent-ink);transform:translateY(-1px) rotate(-45deg) scale(0);transition:transform 220ms var(--ease-out)}
+.irow .it{flex:1;min-width:0;position:relative;font-size:16px;transition:color 200ms var(--ease-out)}
+.irow .it>span{position:relative;word-break:break-word}
+.irow .it>span::after{content:'';position:absolute;left:-2px;right:-2px;top:52%;height:2px;background:currentColor;transform:scaleX(0);transform-origin:left;transition:transform 260ms var(--ease-out)}
+.irow.on .ck{background:var(--accent);border-color:var(--accent)}
+.irow.on .ck::after{transform:translateY(-1px) rotate(-45deg) scale(1)}
+.irow.on .it{color:var(--sub)}
+.irow.on .it>span::after{transform:scaleX(1)}
+.irow .x2{font-size:12px;color:var(--sub);padding:4px 6px;border-radius:8px}
+.irow .x2.arm{background:var(--warn);color:#fff}
+/* 투표 */
+.pcard.poll h4{margin:0 0 10px;font-size:16.5px;word-break:keep-all}
+.opt{position:relative;display:flex;align-items:center;gap:8px;width:100%;padding:11px 12px;margin-top:6px;border-radius:12px;border:1px solid var(--line);background:var(--bg);overflow:hidden;text-align:left;min-height:46px}
+.opt i{position:absolute;inset:0;background:var(--soft);transform-origin:left;transform:scaleX(0);transition:transform 600ms var(--ease-out)}
+.opt span,.opt b{position:relative}
+.opt span{flex:1;min-width:0;font-size:15px}
+.opt b{font-size:13px;color:var(--sub);font-variant-numeric:tabular-nums}
+.opt.me{border-color:var(--accent)}
+.opt.me i{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+.opt.me span{font-weight:700}
+.opt.me span::after{content:' ✓';color:var(--accent)}
+.poll .pt{font-size:12.5px;color:var(--sub);margin-top:8px}
+
+/* 새 글 시트 */
+#postDlg .seg{margin:6px 0 12px}
+.fld{margin-bottom:12px}
+.fld label{display:block;font-size:13px;color:var(--sub);font-weight:500;margin-bottom:6px}
+.fld input,.fld textarea{font:inherit;font-size:16px;width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:11px 12px;-webkit-appearance:none;appearance:none}
+.fld textarea{resize:none;min-height:84px}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tags button{padding:9px 13px;border-radius:999px;border:1px solid var(--line);background:var(--bg);font-size:14px;font-weight:500}
+.tags button.on{background:var(--tc);border-color:var(--tc);color:#fff}
+.opts input{margin-bottom:6px}
+.addopt{font-size:13.5px;color:var(--accent);font-weight:700;padding:6px 2px}
+.qdates{display:flex;gap:6px;margin-bottom:6px}
+.qdates button{padding:7px 11px;border-radius:999px;border:1px solid var(--line);background:var(--bg);font-size:13px}
+.qdates button.on{border-color:var(--accent);color:var(--accent);font-weight:700}
+
+/* 축하 조각 */
+.confetti{position:fixed;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:30;top:0;left:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:2s!important}}
 </style>
 </head>
@@ -259,20 +358,25 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
   <div class="nmemo" id="nowMemo"></div>
 </div>
 
+<div class="dstrip" id="dstrip"></div>
+
 <div class="weeknav">
   <button id="prevW" aria-label="이전 주">‹</button>
   <span class="wk" id="wkLbl">이번 주</span>
   <button id="nextW" aria-label="다음 주">›</button>
 </div>
 
-<div class="days" id="days"></div>
+<div class="daysw"><i class="dpill" id="dpill"></i><div class="days" id="days"></div></div>
 <div class="list" id="list"></div>
 <div class="grid" id="grid"></div>
+<section class="board" id="board" aria-label="우리 반"></section>
 <div class="foot" id="foot"></div>
 
 <nav class="tabbar">
+  <i class="pill" id="tpill" aria-hidden="true"></i>
   <button id="tDay" class="on">하루</button>
   <button id="tWeek">한 주</button>
+  <button id="tClass">우리 반</button>
   <button id="tSet">설정</button>
 </nav>
 
@@ -318,6 +422,19 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
     </div>
     <p class="hint">같은 반 시간표를 보는 모두에게 보여요 · 욕설·전화번호·링크는 가려져요 · 신고 3번이면 숨겨져요</p>
   </div>
+</dialog>
+
+<!-- 우리 반 새 글 -->
+<dialog id="postDlg" aria-labelledby="pTitle">
+  <div class="dh"><div><small id="pWho"></small><h2 id="pTitle">새 글 쓰기</h2></div><button class="x" id="postClose">닫기</button></div>
+  <div class="seg" id="pKind"><button data-k="event" class="on">일정·D-day</button><button data-k="item">준비물</button><button data-k="poll">투표</button><button data-k="notice">공지</button></div>
+  <div class="fld"><label for="pText" id="pTextLbl">무엇인가요?</label><input id="pText" maxlength="80" autocomplete="off" enterkeyhint="next"><textarea id="pBody" maxlength="200" hidden></textarea></div>
+  <div class="fld" id="pDateF"><label for="pDate">날짜</label><div class="qdates" id="pQuick"></div><input type="date" id="pDate"></div>
+  <div class="fld" id="pTagF"><label>종류</label><div class="tags" id="pTags"></div></div>
+  <div class="fld" id="pOptF" hidden><label>선택지 (2~5개)</label><div class="opts" id="pOpts"></div><button class="addopt" id="pAddOpt">+ 선택지 추가</button></div>
+  <div class="fld"><label for="pNick">닉네임 (안 써도 돼요)</label><input id="pNick" maxlength="12" autocomplete="nickname"></div>
+  <p class="hint">우리 반 시간표를 보는 모두에게 보여요 · 욕설·전화번호·링크는 가려져요 · 신고 3번이면 숨겨져요</p>
+  <div class="btns"><button id="pCancel">취소</button><button class="pri" id="pSend">올리기</button></div>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
