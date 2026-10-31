@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>세종 시간표 개인정보처리방침·이용 규칙</title>
+<style>
+:root{--bg:#f3f5f2;--card:#fff;--ink:#161d19;--sub:#66736b;--line:#e3e8e3;--accent:#1f8a5b}
+@media (prefers-color-scheme:dark){:root{--bg:#0e141b;--card:#161f28;--ink:#eef2ee;--sub:#93a19a;--line:#24303b;--accent:#3fc489}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;line-height:1.65;
+  padding:calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 40px)}
+main{max-width:680px;margin:0 auto}
+h1{font-size:24px;margin:0 0 4px;letter-spacing:-.4px}
+h2{font-size:17px;margin:28px 0 8px}
+p,li{font-size:15.5px}
+.sub{color:var(--sub);font-size:14px}
+section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:4px 18px 12px;margin-top:16px}
+a{color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:14.5px}
+td,th{border-top:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:600;white-space:nowrap}
+</style>
+</head>
+<body>
+<main>
+<h1>세종 시간표</h1>
+<p class="sub">개인정보처리방침 · 이용 규칙 · 시행일 2026년 11월 1일</p>
+
+<section id="privacy">
+<h2>1. 모으는 정보</h2>
+<p>세종 시간표는 회원가입이 없고, 이름·전화번호·이메일·위치·연락처·사진 같은 정보를 받지 않아요.</p>
+<table>
+<tr><th>정보</th><th>왜</th><th>어디에</th></tr>
+<tr><td>고른 학교·학년·반, 교시 시간, 화면 설정</td><td>시간표를 보여 주려고</td><td>내 기기에만 저장</td></tr>
+<tr><td>내가 쓴 교시 메모·게시글(일정, 준비물, 투표, 공지)과 닉네임</td><td>같은 반 친구들에게 보여 주려고</td><td>서버(Google Cloud Firestore)</td></tr>
+<tr><td>기기마다 무작위로 만든 식별값</td><td>내가 쓴 글만 지울 수 있게, 투표·신고를 한 번만 세려고</td><td>기기에 원본, 서버에는 되돌릴 수 없게 바꾼 값(해시)만</td></tr>
+<tr><td>접속 IP 주소</td><td>도배·악용 막기(요청 수 제한, 신고 중복 판단)</td><td>서버 메모리에 잠시(최대 1시간), 신고 기록에는 해시만</td></tr>
+</table>
+
+<h2>2. 보여 주는 범위</h2>
+<p>메모와 게시글은 <b>같은 학교·같은 학년·같은 반</b> 시간표를 보는 모든 사람에게 보여요. 다른 사람이 알면 안 되는 개인정보(전화번호, 주소, 실명 등)는 쓰지 마세요. 전화번호와 링크는 자동으로 가려져요.</p>
+
+<h2>3. 보관 기간과 삭제</h2>
+<ul>
+<li>내가 쓴 메모·글은 언제든 앱에서 <b>삭제</b>를 눌러 바로 지울 수 있어요.</li>
+<li>게시판은 학년도(3월)가 바뀌면 새로 시작하고, 지난 일정·준비물·투표는 화면에서 사라져요. 서버에 남은 지난 글은 1년 안에 지워요.</li>
+<li>앱을 지우거나 앱 저장 공간을 비우면 기기에 저장된 정보는 모두 지워져요.</li>
+</ul>
+
+<h2>4. 다른 곳에 주는 정보</h2>
+<p>광고·분석 도구를 쓰지 않고, 정보를 팔거나 다른 회사에 주지 않아요. 시간표는 교육부 NEIS 교육정보 개방 포털에서 가져오며, 이때 사용자의 정보는 전달되지 않아요. 서버와 저장소는 Google Cloud(서울 리전)를 써요.</p>
+
+<h2>5. 어린이</h2>
+<p>세종 시간표는 학생이 쓰는 앱이라 실명·연락처를 받지 않고, 글 내용도 자동으로 걸러요. 보호자가 자녀의 글 삭제를 원하면 아래 연락처로 알려 주세요.</p>
+</section>
+
+<section id="rules">
+<h2>6. 이용 규칙 (글 쓰기 전에 꼭 읽어 주세요)</h2>
+<ul>
+<li>욕설, 놀림, 따돌림, 다른 사람 험담, 개인정보 올리기는 안 돼요.</li>
+<li>광고, 도배, 거짓 정보도 안 돼요.</li>
+<li>나쁜 글은 <b>신고</b>를 눌러 주세요. 서로 다른 사람의 신고가 3번 쌓이면 바로 숨겨지고, 운영자가 확인해 지워요.</li>
+<li>규칙을 계속 어기면 글쓰기가 막힐 수 있어요.</li>
+</ul>
+</section>
+
+<section id="contact">
+<h2>7. 문의</h2>
+<p>개인정보·신고·삭제 요청: <a href="mailto:hookite@gmail.com">hookite@gmail.com</a><br>
+<span class="sub">요청을 받으면 7일 안에 처리해요.</span></p>
+</section>
+</main>
+</body>
+</html>

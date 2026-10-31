@@ -335,6 +335,10 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
 .qdates button{padding:7px 11px;border-radius:999px;border:1px solid var(--line);background:var(--bg);font-size:13px}
 .qdates button.on{border-color:var(--accent);color:var(--accent);font-weight:700}
 
+.rules{margin:0 0 12px;padding-left:20px}
+.rules li{margin:6px 0;font-size:15px}
+.plink{display:block;margin:18px 2px 0;font-size:13.5px;color:var(--sub)}
+dialog a{color:var(--accent)}
 /* 축하 조각 */
 .confetti{position:fixed;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:30;top:0;left:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:2s!important}}
@@ -406,6 +410,7 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
   <div class="seg" id="theme">
     <button data-v="auto">자동</button><button data-v="light">밝게</button><button data-v="dark">어둡게</button>
   </div>
+  <a class="plink" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침 · 이용 규칙</a>
   <div class="btns"><button id="resetT">시간 기본값</button><button class="pri" id="save">저장</button></div>
 </dialog>
 
@@ -422,6 +427,20 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
     </div>
     <p class="hint">같은 반 시간표를 보는 모두에게 보여요 · 욕설·전화번호·링크는 가려져요 · 신고 3번이면 숨겨져요</p>
   </div>
+</dialog>
+
+<!-- 처음 글 쓰기 전 이용 규칙 -->
+<dialog id="rulesDlg" aria-labelledby="rTitle">
+  <h2 id="rTitle">글 쓰기 전에 약속해요</h2>
+  <p class="d">내가 쓴 글은 같은 반 시간표를 보는 모두에게 보여요.</p>
+  <ul class="rules">
+    <li>욕설·놀림·따돌림·험담은 안 돼요</li>
+    <li>전화번호·주소·실명 같은 개인정보는 쓰지 않아요</li>
+    <li>광고·도배·거짓 정보는 안 돼요</li>
+    <li>나쁜 글은 <b>신고</b>해 주세요. 신고 3번이면 숨겨지고, 계속 어기면 글쓰기가 막혀요</li>
+  </ul>
+  <p class="d"><a href="privacy.html" target="_blank" rel="noopener">개인정보처리방침·이용 규칙 전체 보기</a></p>
+  <div class="btns"><button id="rNo">다음에</button><button class="pri" id="rOk">약속하고 쓰기</button></div>
 </dialog>
 
 <!-- 우리 반 새 글 -->

@@ -100,7 +100,7 @@ let toastT;
 function toast(msg){
   const t = $('#toast');
   // 열린 시트(모달)가 있으면 그 안에 넣어야 시트 위로 보임
-  const top = ['#postDlg', '#memoDlg', '#schoolDlg', '#dlg'].map(id => $(id)).find(d => d.open) || document.body;
+  const top = ['#rulesDlg', '#postDlg', '#memoDlg', '#schoolDlg', '#dlg'].map(id => $(id)).find(d => d.open) || document.body;
   if (t.parentNode !== top) top.appendChild(t);
   t.classList.toggle('top', $('#memoDlg').open);   // 메모 시트에선 입력창을 가리지 않게 위쪽에
   t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
@@ -491,10 +491,16 @@ function drawMemos(){
 }
 function updCount(){ const n = [...$('#mText').value].length; $('#mCount').textContent = `${n}/200`; $('#mCount').classList.toggle('over', n > 200); $('#mSend').disabled = !$('#mText').value.trim() || n > 200; }
 $('#mText').addEventListener('input', updCount);
+// 처음 글을 쓸 때 한 번만 이용 규칙에 동의받기
+let rulesNext = null;
+function withRules(fn){ if (store.get('rulesOk', false)) return fn(); rulesNext = fn; $('#rulesDlg').showModal(); }
+$('#rOk').onclick = () => { store.set('rulesOk', true); $('#rulesDlg').close(); const f = rulesNext; rulesNext = null; if (f) f(); };
+$('#rNo').onclick = () => { rulesNext = null; $('#rulesDlg').close(); };
 let sending = false;
 async function sendMemo(){
   const text = $('#mText').value.trim();
   if (!text || sending || !memoAt) return;
+  if (!store.get('rulesOk', false)) return withRules(sendMemo);
   const nick = $('#mNick').value.trim();
   store.set('nick', nick);
   sending = true; $('#mSend').disabled = true; $('#mSend').textContent = '올리는 중';
@@ -738,6 +744,7 @@ $('#postClose').onclick = $('#pCancel').onclick = () => $('#postDlg').close();
 let posting = false;
 $('#pSend').onclick = async () => {
   if (posting) return;
+  if (!store.get('rulesOk', false)) return withRules(() => $('#pSend').click());
   const text = (pKind === 'notice' ? $('#pBody') : $('#pText')).value.trim();
   if (!text) { toast('내용을 써 주세요'); return; }
   const body = { token: TOKEN, school: S.school.code, grade: S.cls.grade, cls: S.cls.id, kind: pKind, text, nick: $('#pNick').value.trim() };
@@ -841,6 +848,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) retur
 window.addEventListener('online', () => { load(true); loadMemos(); loadBoard(); });
 
 window.__back = () => {
+  if ($('#rulesDlg').open) { $('#rulesDlg').close(); return true; }
   if ($('#postDlg').open) { $('#postDlg').close(); return true; }
   for (const id of ['#memoDlg', '#schoolDlg']) if ($(id).open) { if (id !== '#schoolDlg' || S.school || $('#dlg').open) $(id).close(); return true; }
   if ($('#dlg').open) { if (S.cls) $('#dlg').close(); return true; }
