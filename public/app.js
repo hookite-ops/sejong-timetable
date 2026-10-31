@@ -209,7 +209,7 @@ function renderNow(periods, now, today){
   nowTarget = null;
   const set = (lbl, subj, meta, pct, next, idle, left, hs, target) => {
     $('#nowLbl').textContent = lbl; $('#nowSubj').textContent = subj; $('#nowMeta').textContent = meta;
-    $('#nowBar').style.width = pct + '%'; $('#nowBar').parentNode.style.display = (!idle && pct === 0) ? 'none' : ''; $('#nowNext').innerHTML = next || ''; $('#nowLeft').innerHTML = left || '';
+    $('#nowBar').style.transform = `translateX(${Math.max(0, Math.min(100, pct)) - 100}%)`; $('#nowBar').parentNode.style.display = (!idle && pct === 0) ? 'none' : ''; $('#nowNext').innerHTML = next || ''; $('#nowLeft').innerHTML = left || '';
     box.classList.toggle('idle', idle); box.classList.toggle('cta', !ready()); box.setAttribute('style', hs || '');
     nowTarget = target || null;
     const ms = target ? cellMemos(target.ymd, target.p) : [];
@@ -505,11 +505,19 @@ $('#nextW').onclick = () => shiftWeek(1);
 // 좌우로 밀어서 요일/주 이동, 위에서 당겨서 새로고침
 let sx=0, sy=0, pulling=false, touching=false;
 document.addEventListener('touchstart', e => { touching = !e.target.closest('dialog'); if (!touching) return; sx = e.touches[0].clientX; sy = e.touches[0].clientY; pulling = window.scrollY <= 0; }, {passive:true});
-document.addEventListener('touchmove', e => { if (!touching || !pulling) return; const dy = e.touches[0].clientY - sy; if (dy > 0) { $('#ptr').style.height = Math.min(dy/2.5, 46)+'px'; $('#ptr').innerHTML = dy > 110 ? '<div style="padding-top:14px">놓으면 새로고침</div>' : ''; } }, {passive:true});
+// 당겨서 새로고침: 레이아웃을 건드리지 않고 transform만, 프레임당 한 번만 반영
+let ptrY = 0, ptrRaf = 0, ptrReady = false;
+function ptrDraw(){ ptrRaf = 0; const p = $('#ptr'), y = Math.min(ptrY / 2.5, 56);
+  p.style.transform = `translate(-50%, ${y - 64}px)`; p.style.opacity = Math.min(1, y / 40);
+  const r = ptrY > 110; if (r !== ptrReady) { ptrReady = r; p.classList.toggle('ready', r); p.lastChild.textContent = r ? '놓으면 새로고침' : '당겨서 새로고침'; } }
+document.addEventListener('touchmove', e => { if (!touching || !pulling) return; const dy = e.touches[0].clientY - sy; if (dy <= 0) return;
+  if (!ptrY) $('#ptr').classList.add('drag'); ptrY = dy; if (!ptrRaf) ptrRaf = requestAnimationFrame(ptrDraw); }, {passive:true});
+document.addEventListener('touchcancel', () => { touching = false; pulling = false; ptrReset(); }, {passive:true});
+function ptrReset(){ if (ptrRaf) cancelAnimationFrame(ptrRaf); ptrRaf = 0; ptrY = 0; ptrReady = false; const p = $('#ptr'); p.classList.remove('drag', 'ready'); p.style.transform = ''; p.style.opacity = ''; }
 document.addEventListener('touchend', e => {
   if (!touching) return; touching = false;
   const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
-  $('#ptr').style.height = 0;
+  ptrReset();
   if (pulling && dy > 110 && Math.abs(dx) < 60) { load(true); loadMemos(); pulling = false; return; }
   pulling = false;
   if (!ready()) return;

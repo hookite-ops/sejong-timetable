@@ -21,6 +21,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
+  --ease-out:cubic-bezier(.23,1,.32,1); --ease-drawer:cubic-bezier(.32,.72,0,1);
   --bg:#f3f5f2; --card:#ffffff; --ink:#161d19; --sub:#66736b; --line:#e3e8e3;
   --accent:#1f8a5b; --accent-ink:#ffffff; --soft:#e7f3ec; --warn:#a85a14; --warn-bg:#fbf0e4; --memo:#e8590c; --memo-bg:#fff1e6;
   --shadow:0 1px 2px rgba(20,40,30,.05),0 4px 14px rgba(20,40,30,.05);
@@ -67,7 +68,7 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;m
 .now .left span{font-size:12.5px;opacity:.85}
 .now .meta{font-size:13.5px;opacity:.9;margin-top:6px}
 .now .bar{height:6px;border-radius:9px;background:rgba(255,255,255,.25);margin-top:12px;overflow:hidden}
-.now .bar i{display:block;height:100%;background:#fff;border-radius:9px;transition:width .6s}
+.now .bar i{display:block;width:100%;height:100%;background:#fff;border-radius:9px;transform:translateX(-100%);transition:transform .6s var(--ease-out)}
 .now .next,.now .nmemo{margin-top:11px;font-size:14px;display:flex;align-items:center;gap:8px;opacity:.95}
 .now .next:empty,.now .nmemo:empty{display:none}
 .now .nmemo{margin-top:8px}
@@ -139,12 +140,24 @@ body.week .days,body.week .list{display:none}
 
 .spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:r .8s linear infinite;vertical-align:-2px}
 @keyframes r{to{transform:rotate(360deg)}}
-.ptr{height:0;overflow:hidden;text-align:center;color:var(--sub);font-size:13px;transition:height .2s}
+.ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);z-index:6;display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--sub);font-size:13px;font-weight:500;white-space:nowrap;pointer-events:none;
+  transform:translate(-50%,-64px);opacity:0;transition:transform 260ms var(--ease-out),opacity 200ms var(--ease-out)}
+.ptr.drag{transition:none}
+.ptr i{display:inline-block;transition:transform 200ms var(--ease-out)}
+.ptr.ready i{transform:rotate(180deg)}
+.ptr.ready{color:var(--accent)}
 
 dialog{border:0;border-radius:24px 24px 0 0;background:var(--card);color:var(--ink);width:100%;max-width:560px;margin:auto auto 0;
   padding:18px calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 18px) calc(env(safe-area-inset-left) + 18px);max-height:90vh;max-height:90dvh;overscroll-behavior:contain}
 dialog:not(.tall){overflow-y:auto}
 dialog::backdrop{background:rgba(0,0,0,.45)}
+/* 시트: 아래에서 올라오기 (transform만 움직여서 가볍게). 닫힐 때는 더 빠르게 */
+dialog{transform:translateY(0);transition:transform 420ms var(--ease-drawer),overlay 420ms allow-discrete,display 420ms allow-discrete}
+dialog:not([open]){transform:translateY(100%);transition-duration:240ms;transition-timing-function:var(--ease-out)}
+@starting-style{dialog[open]{transform:translateY(100%)}}
+dialog::backdrop{transition:background-color 300ms var(--ease-out),overlay 300ms allow-discrete,display 300ms allow-discrete}
+dialog:not([open])::backdrop{background-color:rgba(0,0,0,0);transition-duration:200ms}
+@starting-style{dialog[open]::backdrop{background-color:rgba(0,0,0,0)}}
 dialog.tall{height:90vh;height:90dvh;display:none;flex-direction:column}
 dialog.tall[open]{display:flex}
 dialog h2{margin:0 0 4px;font-family:'Gowun Dodum',system-ui;font-weight:400;font-size:22px;word-break:keep-all}
@@ -229,7 +242,7 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
 </style>
 </head>
 <body>
-<div class="ptr" id="ptr"></div>
+<div class="ptr" id="ptr" aria-hidden="true"><i>↓</i><span>당겨서 새로고침</span></div>
 <header>
   <div class="brand"><small id="sub">세종 시간표</small><span id="dateLbl">시간표</span></div>
   <button class="chip" id="classBtn">학교 선택</button>
@@ -241,7 +254,7 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
     <div class="left" id="nowLeft"></div>
   </div>
   <div class="meta" id="nowMeta"></div>
-  <div class="bar"><i id="nowBar" style="width:0"></i></div>
+  <div class="bar"><i id="nowBar"></i></div>
   <div class="next" id="nowNext"></div>
   <div class="nmemo" id="nowMemo"></div>
 </div>
