@@ -108,14 +108,41 @@ function applyTheme(o = S){
   if (o.skin) { r.dataset.skin = o.skin; delete r.dataset.theme; }
   else { delete r.dataset.skin; if (o.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = o.theme; }
   r.classList.toggle('rm', !!o.rm);
+  drawSky(o.skin);
   const z = +o.fs || 1; document.body.style.zoom = z === 1 ? '' : z;
   // 상태바 색 = 지금 배경색
   const bg = getComputedStyle(r).getPropertyValue('--bg').trim() || '#f3f5f2';
   document.querySelectorAll('meta[name=theme-color]').forEach(m => { m.content = bg; });
   requestAnimationFrame(() => placeDayPill());
 }
-// 테마가 바뀔 때 화면 전체가 부드럽게 겹쳐 바뀜 (View Transitions, 안 되는 브라우저는 바로 바뀜)
-function withFade(fn){ if (document.startViewTransition && !RM.matches) document.startViewTransition(fn); else fn(); }
+// 테마가 바뀔 때: 누른 자리에서 새 테마가 동그랗게 퍼져 나감 (View Transitions, 안 되는 기기는 바로 바뀜)
+function withFade(fn, from){
+  if (!document.startViewTransition || RM.matches) { fn(); return; }
+  const r = from ? from.getBoundingClientRect() : null;
+  const x = r ? r.left + r.width / 2 : innerWidth / 2, y = r ? r.top + r.height / 2 : 0;
+  const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const t = document.startViewTransition(fn);
+  t.ready.then(() => document.documentElement.animate(
+    { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
+    { duration: 560, easing: EASE_D, pseudoElement: '::view-transition-new(root)' })).catch(() => {});
+}
+
+// 살아 있는 배경: 테마마다 다른 것들이 천천히 떠다님 (CSS 애니메이션이라 메인 스레드가 바빠도 부드러움)
+const SKY = {
+  otter: [['bub', 'rise', 9]], ocean: [['bub', 'rise', 11]], jungle: [['leaf', 'fall', 8]],
+  sakura: [['petal', 'fall', 12]], lemon: [['spark', 'twinkle', 10]], night: [['star', 'twinkle', 18], ['shoot', 'shoot', 1]],
+};
+let skyFor = null;
+function drawSky(skin){
+  if (skyFor === skin) return; skyFor = skin;
+  const rnd = (a, b) => a + Math.random() * (b - a), out = [];
+  for (const [cls, an, n] of SKY[skin] || []) for (let i = 0; i < n; i++) {
+    const d = an === 'twinkle' ? rnd(2.4, 4.5) : an === 'shoot' ? 9 : rnd(13, 22);
+    const sz = cls === 'star' ? rnd(2, 3.6) : cls === 'spark' ? rnd(8, 14) : cls === 'bub' ? rnd(8, 22) : rnd(10, 18);
+    out.push(`<i class="${cls}" style="--x:${rnd(0, 96).toFixed(1)}%;--y:${rnd(1, an === 'shoot' ? 20 : 60).toFixed(1)}vh;--sz:${sz.toFixed(1)}px;--w:${rnd(-40, 40).toFixed(0)}px;--an:${an};--d:${d.toFixed(1)}s;--dl:${(-rnd(0, d)).toFixed(1)}s"></i>`);
+  }
+  $('#sky').innerHTML = out.join('');
+}
 
 let toastT;
 function toast(msg){
@@ -398,6 +425,7 @@ function openSettings(newSchool){
   $('#dlg').showModal();
   $('#dlg').scrollTop = 0;
   if (newSchool) setDraftSchool(newSchool); else { drawSettings(); if (draft.school) fillClasses(); }
+  enter($('#skins').children, { y: 10, stagger: 30, dur: 320, scale: .85, max: 8 });
 }
 function setDraftSchool(sc){
   const same = draft.school && draft.school.code === sc.code;
@@ -469,8 +497,14 @@ $('#cPick').onclick = e => {
   if (prevLevel !== course.level && !store.get('times.' + draft.school.code, null)) draft.times = defTimes(draft.school.code, course.level);
   drawSettings();
 };
-$('#theme').onclick = e => { const v = e.target.dataset.v; if (!v) return; draft.theme = v; withFade(() => applyTheme(draft)); drawSettings(); };
-$('#skins').onclick = e => { const b = e.target.closest('[data-skin]'); if (!b) return; draft.skin = b.dataset.skin; withFade(() => applyTheme(draft)); drawSettings(); bump(b.querySelector('.sw span')); };
+$('#theme').onclick = e => { const b = e.target.closest('[data-v]'); if (!b || b.dataset.v === draft.theme) return; draft.theme = b.dataset.v; withFade(() => { applyTheme(draft); drawSettings(); }, b); };
+$('#skins').onclick = e => {
+  const b = e.target.closest('[data-skin]'); if (!b || b.dataset.skin === draft.skin) return;
+  draft.skin = b.dataset.skin;
+  withFade(() => { applyTheme(draft); drawSettings(); }, b);
+  const sw = $(`#skins [data-skin="${draft.skin}"] .sw`);
+  if (sw && !RM.matches) sw.animate([{ transform: 'scale(.85) rotate(-10deg)' }, { transform: 'scale(1.12) rotate(6deg)', offset: .5 }, { transform: 'none' }], { duration: 420, easing: EASE });
+};
 $('#fsSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; draft.fs = +b.dataset.f; applyTheme(draft); drawSettings(); };
 $('#rmBtn').onclick = () => { draft.rm = !draft.rm; applyTheme(draft); drawSettings(); };
 $('#times').oninput = e => { const i = +e.target.dataset.i, k = +e.target.dataset.k; if (e.target.value) { draft.times[i][k] = e.target.value; if (!draft.timesOk) { draft.timesOk = true; drawSettings(); } } };
