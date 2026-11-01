@@ -47,7 +47,7 @@ button{transition:transform 120ms cubic-bezier(.23,1,.32,1)}
 button:active:not(:disabled){transform:scale(.97)}
 html{background:var(--bg)}body{margin:0;background:transparent;color:var(--ink)}
 body{font-family:'IBM Plex Sans KR',system-ui,sans-serif;font-size:16px;line-height:1.4;-webkit-text-size-adjust:100%;
-  padding:calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 104px) calc(env(safe-area-inset-left) + 16px);max-width:560px;margin:0 auto;overscroll-behavior:none}
+  padding:calc(var(--sa-top,env(safe-area-inset-top)) + 10px) calc(var(--sa-right,env(safe-area-inset-right)) + 16px) calc(var(--sa-bottom,env(safe-area-inset-bottom)) + 104px) calc(var(--sa-left,env(safe-area-inset-left)) + 16px);max-width:560px;margin:0 auto;overscroll-behavior:none}
 button:focus{outline:none}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
@@ -143,7 +143,7 @@ body.mboard .daysw,body.mboard .list,body.mboard .grid,body.mboard .weeknav,body
 .foot{margin-top:14px;margin-bottom:8px;font-size:12.5px;color:var(--sub);text-align:center}
 .foot.warn{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:9px 12px;text-align:left}
 
-.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 14px);display:grid;grid-template-columns:repeat(4,74px);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px;box-shadow:0 8px 28px rgba(0,0,0,.16);z-index:5}
+.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--sa-bottom,env(safe-area-inset-bottom)) + 14px);display:grid;grid-template-columns:repeat(4,74px);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px;box-shadow:0 8px 28px rgba(0,0,0,.16);z-index:5}
 .tabbar button{position:relative;z-index:1;padding:11px 0;white-space:nowrap;border-radius:999px;font-weight:700;font-size:15px;color:var(--sub);transition:color 220ms var(--ease-out),transform 120ms var(--ease-out)}
 .tabbar button.on{color:var(--bg)}
 .tabbar .pill{position:absolute;left:5px;top:5px;bottom:5px;width:74px;border-radius:999px;background:var(--ink);transition:transform 420ms var(--ease-drawer)}
@@ -151,7 +151,7 @@ body.mboard .daysw,body.mboard .list,body.mboard .grid,body.mboard .weeknav,body
 
 .spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:r .8s linear infinite;vertical-align:-2px}
 @keyframes r{to{transform:rotate(360deg)}}
-.ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);z-index:6;display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--sub);font-size:13px;font-weight:500;white-space:nowrap;pointer-events:none;
+.ptr{position:fixed;left:50%;top:calc(var(--sa-top,env(safe-area-inset-top)) + 8px);z-index:6;display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--sub);font-size:13px;font-weight:500;white-space:nowrap;pointer-events:none;
   transform:translate(-50%,-64px);opacity:0;transition:transform 260ms var(--ease-out),opacity 200ms var(--ease-out)}
 .ptr.drag{transition:none}
 .ptr i{display:inline-block;transition:transform 200ms var(--ease-out)}
@@ -159,7 +159,7 @@ body.mboard .daysw,body.mboard .list,body.mboard .grid,body.mboard .weeknav,body
 .ptr.ready{color:var(--accent)}
 
 dialog{border:0;border-radius:24px 24px 0 0;background:var(--card);color:var(--ink);width:100%;max-width:560px;margin:auto auto 0;
-  padding:18px calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 18px) calc(env(safe-area-inset-left) + 18px);max-height:90vh;max-height:90dvh;overscroll-behavior:contain}
+  padding:18px calc(var(--sa-right,env(safe-area-inset-right)) + 18px) calc(var(--sa-bottom,env(safe-area-inset-bottom)) + 18px) calc(var(--sa-left,env(safe-area-inset-left)) + 18px);max-height:90vh;max-height:90dvh;overscroll-behavior:contain}
 dialog:not(.tall){overflow-y:auto}
 dialog::backdrop{background:rgba(0,0,0,.45)}
 /* 시트: 아래에서 올라오기 (transform만 움직여서 가볍게). 닫힐 때는 더 빠르게 */
@@ -187,7 +187,7 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
 .pick .note{grid-column:1/-1;font-size:13px;color:var(--sub);padding:6px 2px}
 .times{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 10px;align-items:center;font-size:14px}
 .times input{font:inherit;font-size:16px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:7px 8px;width:100%;min-height:40px}
-.btns{display:flex;gap:8px;margin-top:20px;position:sticky;bottom:calc(-1 * (env(safe-area-inset-bottom) + 18px));background:var(--card);padding:10px 0 calc(env(safe-area-inset-bottom) + 18px)}
+.btns{display:flex;gap:8px;margin-top:20px;position:sticky;bottom:calc(-1 * (var(--sa-bottom,env(safe-area-inset-bottom)) + 18px));background:var(--card);padding:10px 0 calc(var(--sa-bottom,env(safe-area-inset-bottom)) + 18px)}
 .btns button{flex:1;padding:14px;border-radius:14px;font-weight:700;font-size:16px;background:var(--bg);border:1px solid var(--line)}
 .btns button.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .btns button:disabled{opacity:.45}
@@ -238,9 +238,9 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
 .crow .send:disabled{opacity:.45}
 .hint{margin:8px 2px 0;font-size:12px;color:var(--sub)}
 
-.toast{position:fixed;margin:0;left:50%;bottom:calc(env(safe-area-inset-bottom) + 84px);transform:translate(-50%,20px);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:14px;font-size:14px;opacity:0;pointer-events:none;transition:transform 220ms cubic-bezier(.23,1,.32,1),opacity 180ms ease-out;z-index:20;max-width:calc(100% - 32px);text-align:center}
+.toast{position:fixed;margin:0;left:50%;bottom:calc(var(--sa-bottom,env(safe-area-inset-bottom)) + 84px);transform:translate(-50%,20px);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:14px;font-size:14px;opacity:0;pointer-events:none;transition:transform 220ms cubic-bezier(.23,1,.32,1),opacity 180ms ease-out;z-index:20;max-width:calc(100% - 32px);text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
-.toast.top{bottom:auto;top:calc(env(safe-area-inset-top) + 16px);transform:translate(-50%,-20px)}
+.toast.top{bottom:auto;top:calc(var(--sa-top,env(safe-area-inset-top)) + 16px);transform:translate(-50%,-20px)}
 .toast.top.on{transform:translate(-50%,0)}
 .now .fix{display:inline-block;font-size:12.5px;font-weight:700;line-height:1.3;padding:7px 10px;border-radius:12px;background:rgba(255,255,255,.22);text-align:center;cursor:pointer}
 .now.idle .fix{background:var(--soft);color:var(--accent)}
@@ -551,6 +551,7 @@ dialog{box-shadow:0 -10px 40px rgba(0,0,0,.18)}
   <div class="access">
     <div class="seg" id="fsSeg" role="radiogroup" aria-label="글자 크기"><button role="radio" data-f="1">글자 보통</button><button role="radio" data-f="1.1">크게</button><button role="radio" data-f="1.2">아주 크게</button></div>
     <button class="okt" id="rmBtn" aria-pressed="false"><i aria-hidden="true"></i>움직임 줄이기 (화면 이동 효과 끄기)</button>
+    <button class="okt" id="fullBtn" hidden aria-pressed="false"><i aria-hidden="true"></i>전체화면 (위아래 바 숨기기, 끝에서 밀면 잠깐 보여요)</button>
   </div>
   <div class="sec" id="timeSec">교시 시간 <span id="timeNote"></span></div>
   <div class="times" id="times"></div>

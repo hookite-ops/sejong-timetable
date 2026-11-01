@@ -71,7 +71,7 @@ function getToken(){
 }
 const TOKEN = getToken();
 let S = { school: store.get('school', null), cls: store.get('cls', null), theme: store.get('theme', 'auto'),
-  skin: store.get('skin', ''), fs: store.get('fs', 1), rm: store.get('rm', false) };
+  skin: store.get('skin', ''), fs: store.get('fs', 1), rm: store.get('rm', false), full: store.get('full', false) };
 const SKINS = [
   { id: '', name: '기본', e: '🌱', b: '#f3f5f2', c: '#ffffff', a: '#1f8a5b' },
   { id: 'otter', name: '수달', e: '🦦', b: '#f6efe6', c: '#fffaf3', a: '#2f7aa0' },
@@ -117,8 +117,16 @@ function applyTheme(o = S){
   const top = /^#[0-9a-f]{6}$/i.test(hero) && /^#[0-9a-f]{6}$/i.test(bg) ? mixHex(hero, bg, .72) : bg;
   document.querySelectorAll('meta[name=theme-color]').forEach(m => { m.content = top; });
   try { window.AndroidBars && window.AndroidBars.setBars(top, bg); } catch (e) {}
+  try { window.AndroidBars && window.AndroidBars.setFull && window.AndroidBars.setFull(!!o.full); } catch (e) {}
   requestAnimationFrame(() => placeDayPill());
 }
+// 앱(안드로이드)에서는 화면 끝까지 그리고, 상태바·내비게이션바 자리만큼 비워 둠 (앱이 크기를 알려 줌)
+window.__insets = (t, r, b, l) => {
+  const st = document.documentElement.style;
+  [['top', t], ['right', r], ['bottom', b], ['left', l]].forEach(([k, v]) => st.setProperty('--sa-' + k, (+v || 0) + 'px'));
+  requestAnimationFrame(() => { placeDayPill(); placeTabPill && placeTabPill(); });
+};
+try { if (window.AndroidBars && AndroidBars.insets) window.__insets(...AndroidBars.insets().split(',')); } catch (e) {}
 function mixHex(a, b, t){
   const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
   const x = p(a), y = p(b);
@@ -430,7 +438,7 @@ async function getClassInfo(code){
 }
 function openSettings(newSchool){
   drawTeachRow();
-  draft = { school: S.school, cls: S.cls ? { ...S.cls } : null, theme: S.theme, skin: S.skin, fs: S.fs, rm: S.rm, times: S.times.map(t => [...t]), timesOk: S.timesOk };
+  draft = { school: S.school, cls: S.cls ? { ...S.cls } : null, theme: S.theme, skin: S.skin, fs: S.fs, rm: S.rm, full: S.full, times: S.times.map(t => [...t]), timesOk: S.timesOk };
   $('#dlg').showModal();
   $('#dlg').scrollTop = 0;
   if (newSchool) setDraftSchool(newSchool); else { drawSettings(); if (draft.school) fillClasses(); }
@@ -483,6 +491,8 @@ function drawSettings(){
   $('#lightSec').hidden = $('#theme').hidden = !!draft.skin;
   document.querySelectorAll('#fsSeg button').forEach(b => { const on = +b.dataset.f === (+draft.fs || 1); b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
   $('#rmBtn').classList.toggle('on', !!draft.rm); $('#rmBtn').setAttribute('aria-pressed', !!draft.rm);
+  $('#fullBtn').hidden = !(window.AndroidBars && window.AndroidBars.setFull);
+  $('#fullBtn').classList.toggle('on', !!draft.full); $('#fullBtn').setAttribute('aria-pressed', !!draft.full);
   $('#save').disabled = !(draft.school && draft.cls);
   $('#save').textContent = draft.cls ? '저장' : (draft.school ? '반을 골라 주세요' : '학교를 골라 주세요');
 }
@@ -516,15 +526,16 @@ $('#skins').onclick = e => {
 };
 $('#fsSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; draft.fs = +b.dataset.f; applyTheme(draft); drawSettings(); };
 $('#rmBtn').onclick = () => { draft.rm = !draft.rm; applyTheme(draft); drawSettings(); };
+$('#fullBtn').onclick = () => { draft.full = !draft.full; applyTheme(draft); drawSettings(); };
 $('#times').oninput = e => { const i = +e.target.dataset.i, k = +e.target.dataset.k; if (e.target.value) { draft.times[i][k] = e.target.value; if (!draft.timesOk) { draft.timesOk = true; drawSettings(); } } };
 $('#timesOk').onclick = () => { draft.timesOk = !draft.timesOk; drawSettings(); };
 $('#resetT').onclick = () => { draft.times = defTimes(draft.school ? draft.school.code : '', (draft.cls && draft.cls.level) || (draft.school && draft.school.level) || 'm'); drawTimes(); toast('기본 시간으로 바꿨어요 (저장을 눌러야 적용)'); };
 $('#save').onclick = () => {
   if (!draft.school || !draft.cls) return;
   const changed = !S.school || draft.school.code !== S.school.code || !S.cls || draft.cls.id !== S.cls.id || draft.cls.grade !== S.cls.grade;
-  S = { school: draft.school, cls: draft.cls, theme: draft.theme, skin: draft.skin, fs: draft.fs, rm: draft.rm, times: draft.times, timesOk: draft.school.code === SAEUM || !!draft.timesOk };
+  S = { school: draft.school, cls: draft.cls, theme: draft.theme, skin: draft.skin, fs: draft.fs, rm: draft.rm, full: draft.full, times: draft.times, timesOk: draft.school.code === SAEUM || !!draft.timesOk };
   if (S.timesOk && S.school.code !== SAEUM) store.set('timesOk.' + S.school.code, true); else store.del('timesOk.' + S.school.code);
-  store.set('school', S.school); store.set('cls', S.cls); store.set('theme', S.theme); store.set('skin', S.skin); store.set('fs', S.fs); store.set('rm', S.rm);
+  store.set('school', S.school); store.set('cls', S.cls); store.set('theme', S.theme); store.set('skin', S.skin); store.set('fs', S.fs); store.set('rm', S.rm); store.set('full', S.full);
   const isDef = JSON.stringify(S.times) === JSON.stringify(defTimes(S.school.code, S.cls.level));
   if (isDef || !S.timesOk) store.del('times.' + S.school.code); else store.set('times.' + S.school.code, S.times);
   applyTheme(); $('#dlg').close();
