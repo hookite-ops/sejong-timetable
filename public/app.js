@@ -5,7 +5,9 @@ const WD = ['일','월','화','수','목','금','토'];
 const pad = n => String(n).padStart(2,'0');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // ---------- 움직임 (transform·opacity만, '동작 줄이기' 켜면 생략) ----------
-const RM = matchMedia('(prefers-reduced-motion: reduce)');
+const RMQ = matchMedia('(prefers-reduced-motion: reduce)');
+// 기기의 '동작 줄이기' 또는 앱 설정의 '움직임 줄이기'
+const RM = { get matches(){ return RMQ.matches || document.documentElement.classList.contains('rm'); } };
 const EASE = 'cubic-bezier(.23,1,.32,1)', EASE_D = 'cubic-bezier(.32,.72,0,1)';
 function enter(els, { x = 0, y = 10, stagger = 32, dur = 300, max = 9, scale = 1 } = {}) {
   if (RM.matches) return;
@@ -68,7 +70,18 @@ function getToken(){
   return t;
 }
 const TOKEN = getToken();
-let S = { school: store.get('school', null), cls: store.get('cls', null), theme: store.get('theme', 'auto') };
+let S = { school: store.get('school', null), cls: store.get('cls', null), theme: store.get('theme', 'auto'),
+  skin: store.get('skin', ''), fs: store.get('fs', 1), rm: store.get('rm', false) };
+const SKINS = [
+  { id: '', name: '기본', e: '🌱', b: '#f3f5f2', c: '#ffffff', a: '#1f8a5b' },
+  { id: 'otter', name: '수달', e: '🦦', b: '#f6efe6', c: '#fffaf3', a: '#2f7aa0' },
+  { id: 'jungle', name: '정글', e: '🐒', b: '#edf3e4', c: '#fbfdf6', a: '#2e7a32' },
+  { id: 'ocean', name: '바다', e: '🐳', b: '#e9f3fb', c: '#ffffff', a: '#1864ab' },
+  { id: 'sakura', name: '벚꽃', e: '🌸', b: '#fdf0f3', c: '#ffffff', a: '#c2255c' },
+  { id: 'lemon', name: '레몬', e: '🍋', b: '#fffbe8', c: '#ffffff', a: '#f2b705' },
+  { id: 'night', name: '밤하늘', e: '🌙', b: '#0e1130', c: '#181c44', a: '#a78bfa' },
+  { id: 'contrast', name: '고대비', e: 'Aa', b: '#ffffff', c: '#e3ebff', a: '#003f9e' },
+];
 const timesFor = (code, level) => { const t = store.get('times.' + code, null); return Array.isArray(t) && t.length ? t : defTimes(code, level); };
 // 새움중(실제 일과표)이나 사용자가 시간을 저장·확인한 학교만 '확인됨'. 나머지는 추정값이라 화면에 그렇게 표시
 const timesKnown = code => code === SAEUM || !!store.get('times.' + code, null) || !!store.get('timesOk.' + code, false);
@@ -89,12 +102,20 @@ const ready = () => !!(S.school && S.cls);
 const clsQS = () => `school=${encodeURIComponent(S.school.code)}&grade=${S.cls.grade}&cls=${encodeURIComponent(S.cls.id)}`;
 const clsName = c => c ? ((c.short ? c.short + ' ' : '') + (c.gradeLabel || c.grade + '학년') + ' ' + c.label) : '';
 
-function applyTheme(){
-  if (S.theme === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = S.theme;
-  // 상태바 색도 고른 테마에 맞추기 (자동이면 기기 설정을 따름)
-  document.querySelectorAll('meta[name=theme-color]').forEach(m => { const dark = m.media.includes('dark');
-    if (S.theme === 'auto') m.content = dark ? '#0e141b' : '#f3f5f2'; else m.content = S.theme === 'dark' ? '#0e141b' : '#f3f5f2'; });
+// 테마(스킨)·밝기·글자 크기·움직임 줄이기를 한 번에 적용. o를 주면 미리보기
+function applyTheme(o = S){
+  const r = document.documentElement;
+  if (o.skin) { r.dataset.skin = o.skin; delete r.dataset.theme; }
+  else { delete r.dataset.skin; if (o.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = o.theme; }
+  r.classList.toggle('rm', !!o.rm);
+  const z = +o.fs || 1; document.body.style.zoom = z === 1 ? '' : z;
+  // 상태바 색 = 지금 배경색
+  const bg = getComputedStyle(r).getPropertyValue('--bg').trim() || '#f3f5f2';
+  document.querySelectorAll('meta[name=theme-color]').forEach(m => { m.content = bg; });
+  requestAnimationFrame(() => placeDayPill());
 }
+// 테마가 바뀔 때 화면 전체가 부드럽게 겹쳐 바뀜 (View Transitions, 안 되는 브라우저는 바로 바뀜)
+function withFade(fn){ if (document.startViewTransition && !RM.matches) document.startViewTransition(fn); else fn(); }
 
 let toastT;
 function toast(msg){
@@ -373,7 +394,7 @@ async function getClassInfo(code){
 }
 function openSettings(newSchool){
   drawTeachRow();
-  draft = { school: S.school, cls: S.cls ? { ...S.cls } : null, theme: S.theme, times: S.times.map(t => [...t]), timesOk: S.timesOk };
+  draft = { school: S.school, cls: S.cls ? { ...S.cls } : null, theme: S.theme, skin: S.skin, fs: S.fs, rm: S.rm, times: S.times.map(t => [...t]), timesOk: S.timesOk };
   $('#dlg').showModal();
   $('#dlg').scrollTop = 0;
   if (newSchool) setDraftSchool(newSchool); else { drawSettings(); if (draft.school) fillClasses(); }
@@ -421,6 +442,10 @@ function drawSettings(){
   $('#timesOk').setAttribute('aria-pressed', draft.timesOk ? 'true' : 'false');
   drawTimes();
   document.querySelectorAll('#theme button').forEach(b => b.classList.toggle('on', b.dataset.v === draft.theme));
+  $('#skins').innerHTML = SKINS.map(k => `<button class="skin${k.id === draft.skin ? ' on' : ''}" data-skin="${k.id}" aria-pressed="${k.id === draft.skin}" style="--b:${k.b};--c:${k.c};--a:${k.a}"><span class="sw"><span>${k.e}</span></span>${k.name}</button>`).join('');
+  $('#lightSec').hidden = $('#theme').hidden = !!draft.skin;
+  document.querySelectorAll('#fsSeg button').forEach(b => { const on = +b.dataset.f === (+draft.fs || 1); b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  $('#rmBtn').classList.toggle('on', !!draft.rm); $('#rmBtn').setAttribute('aria-pressed', !!draft.rm);
   $('#save').disabled = !(draft.school && draft.cls);
   $('#save').textContent = draft.cls ? '저장' : (draft.school ? '반을 골라 주세요' : '학교를 골라 주세요');
 }
@@ -444,16 +469,19 @@ $('#cPick').onclick = e => {
   if (prevLevel !== course.level && !store.get('times.' + draft.school.code, null)) draft.times = defTimes(draft.school.code, course.level);
   drawSettings();
 };
-$('#theme').onclick = e => { const v = e.target.dataset.v; if (!v) return; draft.theme = v; drawSettings(); };
+$('#theme').onclick = e => { const v = e.target.dataset.v; if (!v) return; draft.theme = v; withFade(() => applyTheme(draft)); drawSettings(); };
+$('#skins').onclick = e => { const b = e.target.closest('[data-skin]'); if (!b) return; draft.skin = b.dataset.skin; withFade(() => applyTheme(draft)); drawSettings(); bump(b.querySelector('.sw span')); };
+$('#fsSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; draft.fs = +b.dataset.f; applyTheme(draft); drawSettings(); };
+$('#rmBtn').onclick = () => { draft.rm = !draft.rm; applyTheme(draft); drawSettings(); };
 $('#times').oninput = e => { const i = +e.target.dataset.i, k = +e.target.dataset.k; if (e.target.value) { draft.times[i][k] = e.target.value; if (!draft.timesOk) { draft.timesOk = true; drawSettings(); } } };
 $('#timesOk').onclick = () => { draft.timesOk = !draft.timesOk; drawSettings(); };
 $('#resetT').onclick = () => { draft.times = defTimes(draft.school ? draft.school.code : '', (draft.cls && draft.cls.level) || (draft.school && draft.school.level) || 'm'); drawTimes(); toast('기본 시간으로 바꿨어요 (저장을 눌러야 적용)'); };
 $('#save').onclick = () => {
   if (!draft.school || !draft.cls) return;
   const changed = !S.school || draft.school.code !== S.school.code || !S.cls || draft.cls.id !== S.cls.id || draft.cls.grade !== S.cls.grade;
-  S = { school: draft.school, cls: draft.cls, theme: draft.theme, times: draft.times, timesOk: draft.school.code === SAEUM || !!draft.timesOk };
+  S = { school: draft.school, cls: draft.cls, theme: draft.theme, skin: draft.skin, fs: draft.fs, rm: draft.rm, times: draft.times, timesOk: draft.school.code === SAEUM || !!draft.timesOk };
   if (S.timesOk && S.school.code !== SAEUM) store.set('timesOk.' + S.school.code, true); else store.del('timesOk.' + S.school.code);
-  store.set('school', S.school); store.set('cls', S.cls); store.set('theme', S.theme);
+  store.set('school', S.school); store.set('cls', S.cls); store.set('theme', S.theme); store.set('skin', S.skin); store.set('fs', S.fs); store.set('rm', S.rm);
   const isDef = JSON.stringify(S.times) === JSON.stringify(defTimes(S.school.code, S.cls.level));
   if (isDef || !S.timesOk) store.del('times.' + S.school.code); else store.set('times.' + S.school.code, S.times);
   applyTheme(); $('#dlg').close();
@@ -461,7 +489,43 @@ $('#save').onclick = () => {
   render(); load(changed); loadMemos(); loadBoard();
 };
 $('#dlg').addEventListener('cancel', e => { if (!S.cls) e.preventDefault(); });
-$('#dlg').addEventListener('close', () => { draft = null; });
+$('#dlg').addEventListener('close', () => { draft = null; applyTheme(S); });   // 저장 안 하고 닫으면 미리보기 되돌리기
+
+// 마스코트: 누르면 꼬물거리고 테마 고르기로
+$('#mascot').onclick = () => {
+  if (!RM.matches) $('#mascot').animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-14deg) scale(1.08)' }, { transform: 'rotate(10deg) scale(1.08)' }, { transform: 'rotate(-6deg)' }, { transform: 'none' }], { duration: 520, easing: EASE });
+  if (!S.school) return;
+  setTimeout(() => { openSettings(); requestAnimationFrame(() => { const el = $('#skins'); if (el) el.previousElementSibling.scrollIntoView({ block: 'start', behavior: RM.matches ? 'auto' : 'smooth' }); }); }, RM.matches ? 0 : 260);
+};
+
+// 시트를 아래로 끌어서 닫기: 빠르게 튕기면 짧게 끌어도 닫힘, 위로 끌면 점점 덜 움직임(고무줄)
+function sheetDrag(dlg){
+  const g = document.createElement('i'); g.className = 'grab'; g.setAttribute('aria-hidden', 'true'); dlg.prepend(g);
+  let y0 = 0, t0 = 0, dy = 0, drag = false, pid = 0;
+  dlg.addEventListener('pointerdown', e => {
+    if (!e.isPrimary || drag) return;
+    if (!e.target.closest('.grab,.dh') || e.target.closest('button,input,textarea,select,a')) return;
+    drag = true; pid = e.pointerId; y0 = e.clientY; t0 = performance.now(); dy = 0;
+    dlg.setPointerCapture(pid); dlg.style.transition = 'none';
+  });
+  dlg.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== pid) return;
+    const raw = e.clientY - y0; dy = raw > 0 ? raw : -Math.sqrt(-raw) * 2.5;
+    dlg.style.transform = `translateY(${dy}px)`;
+  });
+  const end = e => {
+    if (!drag || e.pointerId !== pid) return; drag = false;
+    const v = dy / Math.max(1, performance.now() - t0);
+    dlg.style.transition = '';
+    if (dy > 140 || (dy > 24 && v > 0.11)) {
+      const ev = new Event('cancel', { cancelable: true });
+      if (dlg.dispatchEvent(ev)) { dlg.style.transform = ''; dlg.close(); return; }
+    }
+    dlg.style.transform = '';
+  };
+  dlg.addEventListener('pointerup', end); dlg.addEventListener('pointercancel', end);
+}
+document.querySelectorAll('dialog').forEach(sheetDrag);
 
 // ---------- 메모 시트 ----------
 let memoAt = null;   // { ymd, p, s }
