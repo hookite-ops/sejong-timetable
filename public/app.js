@@ -111,9 +111,18 @@ function applyTheme(o = S){
   drawSky(o.skin);
   const z = +o.fs || 1; document.body.style.zoom = z === 1 ? '' : z;
   // 상태바 색 = 지금 배경색
-  const bg = getComputedStyle(r).getPropertyValue('--bg').trim() || '#f3f5f2';
-  document.querySelectorAll('meta[name=theme-color]').forEach(m => { m.content = bg; });
+  // 상태바 = 화면 맨 위 색(테마 빛이 섞인 배경), 내비게이션바 = 배경색
+  const cs = getComputedStyle(r), bg = cs.getPropertyValue('--bg').trim() || '#f3f5f2';
+  const hero = o.skin ? cs.getPropertyValue('--hero').trim() : '';
+  const top = /^#[0-9a-f]{6}$/i.test(hero) && /^#[0-9a-f]{6}$/i.test(bg) ? mixHex(hero, bg, .72) : bg;
+  document.querySelectorAll('meta[name=theme-color]').forEach(m => { m.content = top; });
+  try { window.AndroidBars && window.AndroidBars.setBars(top, bg); } catch (e) {}
   requestAnimationFrame(() => placeDayPill());
+}
+function mixHex(a, b, t){
+  const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const x = p(a), y = p(b);
+  return '#' + x.map((v, i) => Math.round(v * t + y[i] * (1 - t)).toString(16).padStart(2, '0')).join('');
 }
 // 테마가 바뀔 때: 누른 자리에서 새 테마가 동그랗게 퍼져 나감 (View Transitions, 안 되는 기기는 바로 바뀜)
 function withFade(fn, from){
