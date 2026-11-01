@@ -339,6 +339,38 @@ dialog p.d{margin:0 0 14px;color:var(--sub);font-size:14px}
 .rules li{margin:6px 0;font-size:15px}
 .plink{display:block;margin:18px 2px 0;font-size:13.5px;color:var(--sub)}
 dialog a{color:var(--accent)}
+/* 선생님 */
+.tbadge{font-style:normal;font-size:11px;font-weight:800;color:#fff;background:#1c7ed6;border-radius:6px;padding:2px 6px;flex:none}
+.tbadge.sm{margin-left:4px}
+.pcard.tnotice{border-left-color:#1c7ed6}
+.pcard.tnotice .nt{color:#1c7ed6}
+.memo.tmemo{background:color-mix(in srgb,#1c7ed6 12%,var(--card))}
+.hiddenp{opacity:.55;border-style:dashed}
+.rc{font-size:12px;font-weight:700;color:var(--warn)}
+.ackb{background:#1c7ed6!important;color:#fff!important;border-color:#1c7ed6!important;font-weight:700}
+.ackc{font-size:12.5px;font-weight:700;color:#1c7ed6}
+.ackc.on{color:var(--accent)}
+.dack{position:relative;margin-top:8px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.25);color:#fff;font-size:12.5px;font-weight:700}
+.dchip.tnote b{background:#1c7ed6}
+.lockban{background:var(--warn-bg);color:var(--warn);border-radius:14px;padding:11px 14px;font-size:14px;margin-bottom:6px}
+.tpanel{background:linear-gradient(135deg,#1c7ed6,#1864ab);color:#fff;border-radius:22px;padding:16px;margin-bottom:6px;box-shadow:var(--shadow)}
+.tph{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.tph b{font-size:17px}.tph span{font-size:12.5px;opacity:.85}
+.tstats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.tstats div{background:rgba(255,255,255,.14);border-radius:14px;padding:10px 6px;text-align:center}
+.tstats b{display:block;font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.tstats span{font-size:11px;opacity:.9;word-break:keep-all}
+.tstats .warn{background:rgba(255,200,120,.3)}
+.tacks{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.tacks div{display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.12);border-radius:12px;padding:8px 11px;font-size:13.5px}
+.tacks span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tnote2{margin-top:10px;font-size:12.5px;opacity:.85}
+.tlock{display:flex;align-items:center;gap:10px;width:100%;margin-top:12px;padding:11px 12px;border-radius:14px;background:rgba(0,0,0,.18);color:#fff;font-size:14px;font-weight:700;text-align:left}
+.tlock i{flex:none;width:40px;height:24px;border-radius:999px;background:rgba(255,255,255,.35);position:relative}
+.tlock i::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform 240ms var(--ease-out)}
+.tlock.on i{background:#ffd43b}
+.tlock.on i::after{transform:translateX(16px)}
+.tinfo{font-size:13.5px;color:#1c7ed6;background:color-mix(in srgb,#1c7ed6 10%,transparent);border-radius:12px;padding:10px 12px;margin:0 0 10px}
 /* 축하 조각 */
 .confetti{position:fixed;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:30;top:0;left:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:2s!important}}
@@ -406,6 +438,8 @@ dialog a{color:var(--accent)}
   <div class="sec" id="timeSec">교시 시간 <span id="timeNote"></span></div>
   <div class="times" id="times"></div>
   <button class="okt" id="timesOk" aria-pressed="false"><i aria-hidden="true"></i>이 시간이 우리 학교 일과표와 같아요</button>
+  <div class="sec">선생님 모드</div>
+  <button class="schoolRow" id="teachRow"><b id="teachLbl">선생님이세요? 코드 넣기</b><span>›</span></button>
   <div class="sec">화면</div>
   <div class="seg" id="theme">
     <button data-v="auto">자동</button><button data-v="light">밝게</button><button data-v="dark">어둡게</button>
@@ -426,6 +460,26 @@ dialog a{color:var(--accent)}
       <button class="send" id="mSend">올리기</button>
     </div>
     <p class="hint">같은 반 시간표를 보는 모두에게 보여요 · 욕설·전화번호·링크는 가려져요 · 신고 3번이면 숨겨져요</p>
+  </div>
+</dialog>
+
+<!-- 선생님 코드 -->
+<dialog id="teachDlg" aria-labelledby="tTitle">
+  <div class="dh"><div><small>선생님 모드</small><h2 id="tTitle">선생님 확인</h2></div><button class="x" id="tClose">닫기</button></div>
+  <div id="tIn">
+    <p class="d">운영자에게 받은 선생님 코드를 넣으면 우리 학교 반 게시판을 관리할 수 있어요.</p>
+    <ul class="rules">
+      <li>선생님 이름으로 공지·수행평가·준비물 올리기 (학생은 '확인했어요')</li>
+      <li>누가 확인했는지 숫자로 보기, 학급 현황 한눈에 보기</li>
+      <li>아무 글·메모나 숨기기·지우기, 신고 확인</li>
+      <li>필요할 때 학생 글쓰기 잠그기</li>
+    </ul>
+    <div class="fld"><label for="tCode">선생님 코드</label><input id="tCode" placeholder="T-XXXXX-XXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go"></div>
+    <div class="btns"><button class="pri" id="tGo">확인</button></div>
+  </div>
+  <div id="tOn" hidden>
+    <p class="d"><b id="tWho"></b>으로 관리하고 있어요. 이 학교 반을 고르면 '우리 반' 탭에 관리 도구가 보여요.</p>
+    <div class="btns"><button id="tOut">선생님 모드 끄기</button></div>
   </div>
 </dialog>
 
@@ -451,7 +505,8 @@ dialog a{color:var(--accent)}
   <div class="fld" id="pDateF"><label for="pDate">날짜</label><div class="qdates" id="pQuick"></div><input type="date" id="pDate"></div>
   <div class="fld" id="pTagF"><label>종류</label><div class="tags" id="pTags"></div></div>
   <div class="fld" id="pOptF" hidden><label>선택지 (2~5개)</label><div class="opts" id="pOpts"></div><button class="addopt" id="pAddOpt">+ 선택지 추가</button></div>
-  <div class="fld"><label for="pNick">닉네임 (안 써도 돼요)</label><input id="pNick" maxlength="12" autocomplete="nickname"></div>
+  <div class="fld" id="pNickF"><label for="pNick">닉네임 (안 써도 돼요)</label><input id="pNick" maxlength="12" autocomplete="nickname"></div>
+  <p class="tinfo" id="pTeach" hidden></p>
   <p class="hint">우리 반 시간표를 보는 모두에게 보여요 · 욕설·전화번호·링크는 가려져요 · 신고 3번이면 숨겨져요</p>
   <div class="btns"><button id="pCancel">취소</button><button class="pri" id="pSend">올리기</button></div>
 </dialog>

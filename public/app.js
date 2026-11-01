@@ -100,14 +100,19 @@ let toastT;
 function toast(msg){
   const t = $('#toast');
   // 열린 시트(모달)가 있으면 그 안에 넣어야 시트 위로 보임
-  const top = ['#rulesDlg', '#postDlg', '#memoDlg', '#schoolDlg', '#dlg'].map(id => $(id)).find(d => d.open) || document.body;
+  const top = ['#teachDlg', '#rulesDlg', '#postDlg', '#memoDlg', '#schoolDlg', '#dlg'].map(id => $(id)).find(d => d.open) || document.body;
   if (t.parentNode !== top) top.appendChild(t);
   t.classList.toggle('top', $('#memoDlg').open);   // 메모 시트에선 입력창을 가리지 않게 위쪽에
   t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
 
+// 선생님 모드: 운영자에게 받은 코드로 로그인한 선생님은 그 학교 반들을 관리
+let TEACHER = store.get('teacher', null);   // { token, name, school, schoolName }
+const isTeacher = () => !!(TEACHER && S.school && TEACHER.school === S.school.code);
 async function api(path, opt = {}){
-  const r = await fetch(path, { cache: 'no-store', ...opt, headers: { 'X-Memo-Token': TOKEN, ...(opt.body ? { 'Content-Type': 'application/json' } : {}), ...(opt.headers || {}) } });
+  const th = isTeacher() ? { 'X-Teacher': TEACHER.token } : {};
+  const r = await fetch(path, { cache: 'no-store', ...opt, headers: { 'X-Memo-Token': TOKEN, ...th, ...(opt.body ? { 'Content-Type': 'application/json' } : {}), ...(opt.headers || {}) } });
   let j = null; try { j = await r.json(); } catch(e){}
+  if (r.status === 401 && th['X-Teacher'] && /선생님 확인/.test((j && j.error) || '')) { TEACHER = null; store.del('teacher'); toast('선생님 코드가 취소됐어요'); }
   if (!r.ok) { const e = new Error((j && j.error) || ('서버 오류 ' + r.status)); e.status = r.status; throw e; }
   return j;
 }
@@ -151,7 +156,7 @@ async function loadMemos(){
   }
   memoBusy = false;
 }
-const cellMemos = (ymd, p) => memos.key && ready() && memos.key === wkKey(targetMonday()) ? memos.list.filter(m => m.ymd === ymd && m.period === p) : [];
+const cellMemos = (ymd, p, withHidden) => memos.key && ready() && memos.key === wkKey(targetMonday()) ? memos.list.filter(m => m.ymd === ymd && m.period === p && (withHidden || !m.hidden)) : [];
 
 // ---------- 과목 색 ----------
 const HUE = [['국어',4],['수학',218],['영어',268],['과학',142],['사회',30],['역사',22],['한국사',22],['도덕',176],['체육',88],['음악',330],['미술',48],['정보',196],['기술',245],['가정',245],['진로',300],['한문',12],['보건',160],['바른생활',176],['슬기로운',142],['즐거운',330],['의사소통',4]];
@@ -367,6 +372,7 @@ async function getClassInfo(code){
   return classInfo[code];
 }
 function openSettings(newSchool){
+  drawTeachRow();
   draft = { school: S.school, cls: S.cls ? { ...S.cls } : null, theme: S.theme, times: S.times.map(t => [...t]), timesOk: S.timesOk };
   $('#dlg').showModal();
   $('#dlg').scrollTop = 0;
@@ -482,10 +488,12 @@ function ago(t){
 }
 function drawMemos(){
   if (!memoAt) return;
-  const list = cellMemos(memoAt.ymd, memoAt.p), el = $('#mList');
+  const list = cellMemos(memoAt.ymd, memoAt.p, isTeacher()), el = $('#mList');
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-  el.innerHTML = list.length ? list.map(m => `<div class="memo${m.mine?' mine':''}"><p>${esc(m.text)}</p><div class="mm"><b>${esc(m.nick || '익명')}</b><span>${ago(m.at)}</span><span class="sp"></span>${
-      m.mine ? `<button data-del="${esc(m.id)}">삭제</button>` : m.reported ? `<span>신고함</span>` : `<button data-rep="${esc(m.id)}">신고</button>`}</div></div>`).join('')
+  const T = isTeacher();
+  el.innerHTML = list.length ? list.map(m => `<div class="memo${m.mine?' mine':''}${m.hidden?' hiddenp':''}${m.teacher?' tmemo':''}"><p>${esc(m.text)}</p><div class="mm">${m.teacher ? '<i class="tbadge">선생님</i>' : ''}<b>${esc(m.nick || '익명')}</b><span>${ago(m.at)}</span>${m.hidden ? '<span>· 숨김</span>' : ''}<span class="sp"></span>${
+      m.mine ? `<button data-del="${esc(m.id)}">삭제</button>` : T ? `${m.reports ? `<span class="rc">신고 ${m.reports}</span>` : ''}<button data-mhide="${esc(m.id)}" data-h="${m.hidden ? 0 : 1}">${m.hidden ? '다시 보이기' : '숨기기'}</button><button data-del="${esc(m.id)}">삭제</button>`
+      : m.reported ? `<span>신고함</span>` : `<button data-rep="${esc(m.id)}">신고</button>`}</div></div>`).join('')
     : `<div class="mempty"><b>아직 메모가 없어요</b>준비물, 수행평가, 숙제 같은 걸 남기면<br>같은 반 친구들도 볼 수 있어요.</div>`;
   if (atBottom) el.scrollTop = 1e6;
 }
@@ -500,7 +508,7 @@ let sending = false;
 async function sendMemo(){
   const text = $('#mText').value.trim();
   if (!text || sending || !memoAt) return;
-  if (!store.get('rulesOk', false)) return withRules(sendMemo);
+  if (!isTeacher() && !store.get('rulesOk', false)) return withRules(sendMemo);
   const nick = $('#mNick').value.trim();
   store.set('nick', nick);
   sending = true; $('#mSend').disabled = true; $('#mSend').textContent = '올리는 중';
@@ -518,6 +526,10 @@ $('#mSend').onclick = sendMemo;
 $('#mText').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendMemo(); } });
 // 삭제·신고는 실수 방지로 두 번 눌러야 실행
 $('#mList').onclick = async e => {
+  const hb = e.target.closest('button[data-mhide]');
+  if (hb) { const id = hb.dataset.mhide, h = hb.dataset.h === '1';
+    try { await api(`/api/memos/${encodeURIComponent(id)}/hide`, { method: 'POST', body: JSON.stringify({ token: TOKEN, hidden: h }) }); const m = memos.list.find(x => x.id === id); if (m) m.hidden = h; drawMemos(); render(); toast(h ? '숨겼어요' : '다시 보이게 했어요'); } catch(err) { toast(err.message); }
+    return; }
   const b = e.target.closest('button[data-del],button[data-rep]'); if (!b) return;
   const del = !!b.dataset.del, id = b.dataset.del || b.dataset.rep;
   if (!b.classList.contains('arm')) {
@@ -551,14 +563,15 @@ async function loadBoard(){
   try {
     const j = await api(`/api/board?${clsQS()}`);
     if (key === boardKeyNow()) {
-      const changed = !boardData || JSON.stringify(boardData.posts) !== JSON.stringify(j.posts);
-      boardData = { key, posts: j.posts || [] }; boardToday = j.today || ymdOf(kstNow()); boardAt = Date.now();
+      const changed = !boardData || JSON.stringify(boardData.posts) !== JSON.stringify(j.posts) || boardData.locked !== !!j.locked || boardData.teacher !== !!j.teacher;
+      boardData = { key, posts: j.posts || [], locked: !!j.locked, teacher: !!j.teacher }; boardToday = j.today || ymdOf(kstNow()); boardAt = Date.now();
       if (changed) { renderDstrip(); if (mode === 'board') renderBoard(false); }
       store.set('board.' + key, boardData);
     }
   } catch(e) { boardWait = Date.now() + (e.status === 429 ? 45000 : 15000); if (mode === 'board' && !boardData) renderBoard(false); }
   boardBusy = false;
 }
+const visPosts = () => boardPosts().filter(p => !p.hidden);
 function boardPosts(){
   if (!ready()) return [];
   if (!boardData || boardData.key !== boardKeyNow()) { const c = store.get('board.' + boardKeyNow(), null); if (c) boardData = c; }
@@ -570,15 +583,17 @@ const dLabel = n => n === 0 ? 'D-DAY' : n > 0 ? 'D-' + n : 'D+' + (-n);
 const mdw = ymd => { const d = toDate(ymd); return `${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})`; };
 const whenLbl = ymd => { const n = dayDiff(ymd); return n === 0 ? '오늘' : n === 1 ? '내일' : n === 2 ? '모레' : mdw(ymd); };
 const checks = () => new Set(store.get('chk', []));
-function upcoming(){ return boardPosts().filter(p => p.kind === 'event' && dayDiff(p.ymd) >= 0).sort((a,b) => a.ymd.localeCompare(b.ymd)); }
+function upcoming(){ return visPosts().filter(p => p.kind === 'event' && dayDiff(p.ymd) >= 0).sort((a,b) => a.ymd.localeCompare(b.ymd)); }
 
 // 하루·한 주 화면 위쪽: 가까운 일정 D-day와 내일 준비물
 function renderDstrip(){
   const el = $('#dstrip');
   if (!ready()) { el.innerHTML = ''; return; }
-  const ev = upcoming().slice(0, 4), items = boardPosts().filter(p => p.kind === 'item' && dayDiff(p.ymd) >= 0 && dayDiff(p.ymd) <= 1);
+  const ev = upcoming().slice(0, 4), items = visPosts().filter(p => p.kind === 'item' && dayDiff(p.ymd) >= 0 && dayDiff(p.ymd) <= 1);
   const ck = checks(), left = items.filter(p => !ck.has(p.id));
   let h = '';
+  const tn = visPosts().filter(p => p.teacher && p.kind === 'notice' && !p.myAck && !isTeacher());
+  if (tn.length) h += `<button class="dchip tnote" data-go><b>📢 선생님</b><span>${esc(tn[0].text.split('\n')[0])}</span></button>`;
   if (left.length) h += `<button class="dchip item" data-go><b>준비물 ${left.length}</b><span>${esc(left.map(p => p.text).join(', '))}</span></button>`;
   h += ev.map(p => `<button class="dchip t-${esc(p.tag)}" data-go><b>${dLabel(dayDiff(p.ymd))}</b><span>${esc(p.text)}</span></button>`).join('');
   const sig = h;
@@ -589,8 +604,13 @@ function renderDstrip(){
 $('#dstrip').onclick = e => { if (e.target.closest('[data-go]')) setMode('board'); };
 
 function postMeta(p){
-  return `<div class="pmeta"><b>${esc(p.nick || '익명')}</b><span>${ago(p.at)}</span><span class="sp"></span>${
-    p.mine ? `<button data-del="${esc(p.id)}">삭제</button>` : p.reported ? `<span>신고함</span>` : `<button data-rep="${esc(p.id)}">신고</button>`}</div>`;
+  const T = isTeacher();
+  let act;
+  if (p.mine) act = `<button data-del="${esc(p.id)}">삭제</button>`;
+  else if (T) act = (p.reports ? `<span class="rc">신고 ${p.reports}</span>` : '') + `<button data-hide="${esc(p.id)}" data-h="${p.hidden ? 0 : 1}">${p.hidden ? '다시 보이기' : '숨기기'}</button><button data-del="${esc(p.id)}">삭제</button>`;
+  else act = p.reported ? `<span>신고함</span>` : `<button data-rep="${esc(p.id)}">신고</button>`;
+  const ack = p.teacher ? (T ? `<span class="ackc">✓ ${p.acks}명 확인</span>` : p.myAck ? `<span class="ackc on">✓ 확인함</span>` : `<button class="ackb" data-ack="${esc(p.id)}">확인했어요</button>`) : '';
+  return `<div class="pmeta">${p.teacher ? '<i class="tbadge">선생님</i>' : ''}<b>${esc(p.nick || '익명')}</b><span>${ago(p.at)}</span><span class="sp"></span>${ack}${act}</div>`;
 }
 function pollHtml(p){
   const prev = pollShown.get(p.id), tot = Math.max(1, p.total);
@@ -602,17 +622,24 @@ function pollHtml(p){
 function renderBoard(animate, dir = 0){
   const el = $('#board');
   if (!ready()) { el.innerHTML = ''; return; }
-  const posts = boardPosts(), ck = checks();
+  const all = boardPosts(), posts = all.filter(p => !p.hidden), ck = checks(), T = isTeacher();
+  const locked = !!(boardData && boardData.locked), canPost = T || !locked;
   const ev = upcoming();
   const items = posts.filter(p => p.kind === 'item' && dayDiff(p.ymd) >= -1).sort((a,b) => a.ymd.localeCompare(b.ymd) || a.at - b.at);
   const polls = posts.filter(p => p.kind === 'poll');
-  const notices = posts.filter(p => p.kind === 'notice');
-  let h = `<div class="bhead"><div><small>${esc(clsName(S.cls))} 친구들과 함께</small><h3>우리 반 게시판</h3></div><button class="addb" data-new="event">+ 새 글</button></div>`;
+  const tNotices = posts.filter(p => p.kind === 'notice' && p.teacher);
+  const notices = posts.filter(p => p.kind === 'notice' && !p.teacher);
+  let h = `<div class="bhead"><div><small>${T ? esc(TEACHER.name) + ' 선생님 · 관리 중' : esc(clsName(S.cls)) + ' 친구들과 함께'}</small><h3>${T ? esc(clsName(S.cls)) + ' 게시판' : '우리 반 게시판'}</h3></div>${canPost ? '<button class="addb" data-new="event">+ 새 글</button>' : ''}</div>`;
+  if (T) h += teacherPanel(all, locked);
+  else if (locked) h += `<div class="lockban">🔒 선생님이 지금은 글쓰기를 잠가 두었어요. 보기는 그대로 돼요.</div>`;
+  if (tNotices.length) h += `<div class="bsec">선생님 알림</div>` + tNotices.map(p => `<div class="pcard notice tnotice" data-id="${esc(p.id)}"><div class="nt">📢 선생님 알림</div><p>${esc(p.text)}</p>${postMeta(p)}</div>`).join('');
   if (!boardData && !posts.length) h += `<div class="bempty"><span class="spin"></span> 우리 반 글 불러오는 중</div>`;
   // 일정 D-day
   h += `<div class="bsec">다가오는 일정 <button data-new="event">+ 일정</button></div>`;
   h += ev.length ? `<div class="dcards">${ev.map(p => { const n = dayDiff(p.ymd);
-      return `<div class="dcard t-${esc(p.tag)}${n === 0 ? ' today' : ''}" data-id="${esc(p.id)}"><div class="dt"><span>${esc(p.tag)}</span><span>${whenLbl(p.ymd)}</span></div><div class="dn">${dLabel(n)}</div><div class="tt">${esc(p.text)}</div><div class="dd">${mdw(p.ymd)}</div></div>`; }).join('')}</div>`
+      return `<div class="dcard t-${esc(p.tag)}${n === 0 ? ' today' : ''}" data-id="${esc(p.id)}"><div class="dt"><span>${p.teacher ? '선생님 · ' : ''}${esc(p.tag)}</span><span>${whenLbl(p.ymd)}</span></div><div class="dn">${dLabel(n)}</div><div class="tt">${esc(p.text)}</div><div class="dd">${mdw(p.ymd)}${p.teacher ? ` · ${isTeacher() ? '✓ ' + p.acks + '명 확인' : p.myAck ? '✓ 확인함' : ''}` : ''}</div>${
+        p.teacher && !isTeacher() && !p.myAck ? `<button class="dack" data-ack="${esc(p.id)}">확인했어요</button>` : ''}${
+        isTeacher() && !p.mine ? `<button class="dack" data-hide="${esc(p.id)}" data-h="1">숨기기</button>` : p.mine ? `<button class="dack" data-del="${esc(p.id)}">삭제</button>` : ''}</div>`; }).join('')}</div>`
     : `<div class="bempty">시험·수행평가를 올리면 D-day로 보여 줘요<button data-new="event">+ 첫 일정 올리기</button></div>`;
   // 준비물 (날짜별, 체크는 내 폰에만 저장)
   h += `<div class="bsec">준비물 <button data-new="item">+ 준비물</button></div>`;
@@ -621,7 +648,7 @@ function renderBoard(animate, dir = 0){
     h += Object.entries(groups).map(([y, list]) => { const done = list.filter(p => ck.has(p.id)).length;
       return `<div class="igroup" data-ymd="${y}"><h4><span>${whenLbl(y)} · ${mdw(y)}</span><em>${done}/${list.length}</em></h4>${list.map(p =>
         `<div class="irow${ck.has(p.id) ? ' on' : ''}" data-chk="${esc(p.id)}" role="checkbox" aria-checked="${ck.has(p.id)}" tabindex="0"><span class="ck"></span><span class="it"><span>${esc(p.text)}</span></span>${
-          p.mine ? `<button class="x2" data-del="${esc(p.id)}">삭제</button>` : ''}</div>`).join('')}</div>`; }).join('');
+          p.mine || isTeacher() ? `<button class="x2" data-del="${esc(p.id)}">삭제</button>` : ''}${p.teacher ? '<i class="tbadge sm">선생님</i>' : ''}</div>`).join('')}</div>`; }).join('');
   } else h += `<div class="bempty">내일 챙길 준비물을 올려 두면 다 같이 체크해요<button data-new="item">+ 준비물 올리기</button></div>`;
   // 투표
   h += `<div class="bsec">투표 <button data-new="poll">+ 투표</button></div>`;
@@ -630,7 +657,11 @@ function renderBoard(animate, dir = 0){
   h += `<div class="bsec">공지 <button data-new="notice">+ 공지</button></div>`;
   h += notices.length ? notices.map(p => `<div class="pcard notice" data-id="${esc(p.id)}"><div class="nt">공지</div><p>${esc(p.text)}</p>${postMeta(p)}</div>`).join('')
     : `<div class="bempty">반 친구들 모두 알아야 할 걸 남겨 봐요<button data-new="notice">+ 공지 쓰기</button></div>`;
+  // 선생님: 숨긴 글 모아 보기
+  const hid = all.filter(p => p.hidden);
+  if (T && hid.length) h += `<div class="bsec">숨긴 글 ${hid.length}</div>` + hid.map(p => `<div class="pcard hiddenp" data-id="${esc(p.id)}"><div class="nt">${{ notice: '공지', item: '준비물', event: '일정', poll: '투표' }[p.kind]} · 숨김</div><p>${esc(p.text)}</p>${postMeta(p)}</div>`).join('');
   el.innerHTML = h;
+  if (!canPost) el.querySelectorAll('[data-new]').forEach(b => b.remove());
   // 투표 막대: 다음 프레임에 새 값으로 (CSS transition이 transform만 움직임)
   requestAnimationFrame(() => el.querySelectorAll('.opt i[data-to]').forEach(i => { i.style.transform = `scaleX(${i.dataset.to})`; }));
   polls.forEach(p => pollShown.set(p.id, p.options.map((_, i) => p.counts[i] / Math.max(1, p.total))));
@@ -643,6 +674,9 @@ function renderBoard(animate, dir = 0){
 // 체크·투표·삭제·신고·새 글
 $('#board').addEventListener('click', async e => {
   const nw = e.target.closest('[data-new]'); if (nw) return openPost(nw.dataset.new);
+  const ab = e.target.closest('[data-ack]'); if (ab) return ack(ab);
+  const hb = e.target.closest('[data-hide]'); if (hb) return hidePost(hb);
+  const lk = e.target.closest('[data-lock]'); if (lk) return setLock(lk.dataset.lock === '1');
   const db = e.target.closest('button[data-del],button[data-rep]');
   if (db) return boardDelRep(db);
   const ck = e.target.closest('[data-chk]');
@@ -701,6 +735,66 @@ async function boardDelRep(b){
   renderBoard(false); renderDstrip();
 }
 
+// ---------- 선생님 ----------
+function teacherPanel(all, locked){
+  const vis = all.filter(p => !p.hidden), wk = vis.filter(p => p.kind === 'event' && dayDiff(p.ymd) >= 0 && dayDiff(p.ymd) <= 7);
+  const tmr = vis.filter(p => p.kind === 'item' && dayDiff(p.ymd) >= 0 && dayDiff(p.ymd) <= 1);
+  const rep = all.filter(p => p.reports > 0 || p.hidden).length + memos.list.filter(m => m.reports > 0 || m.hidden).length;
+  const memoN = memos.list.filter(m => !m.hidden).length;
+  const tp = vis.filter(p => p.teacher && (p.kind === 'notice' || p.kind === 'event'));
+  return `<div class="tpanel"><div class="tph"><b>학급 현황</b><span>${esc(clsName(S.cls))} · 이번 주</span></div>
+    <div class="tstats">
+      <div><b>${wk.length}</b><span>7일 안 일정</span></div>
+      <div><b>${tmr.length}</b><span>내일까지 준비물</span></div>
+      <div><b>${memoN}</b><span>이번 주 메모</span></div>
+      <div class="${rep ? 'warn' : ''}"><b>${rep}</b><span>신고·숨김</span></div>
+    </div>
+    ${tp.length ? `<div class="tacks">${tp.slice(0, 4).map(p => `<div><span>${esc(p.text.split('\n')[0])}</span><b>✓ ${p.acks}명</b></div>`).join('')}</div>` : '<div class="tnote2">선생님이 올린 공지·일정은 학생들이 "확인했어요"를 누르면 여기서 몇 명이 봤는지 보여요</div>'}
+    <button class="tlock${locked ? ' on' : ''}" data-lock="${locked ? 0 : 1}" role="switch" aria-checked="${locked}"><i></i>${locked ? '학생 글쓰기 잠김 (보기는 가능)' : '학생 글쓰기 허용 중'}</button>
+  </div>`;
+}
+async function setLock(on){
+  try { await api('/api/teacher/lock', { method: 'POST', body: JSON.stringify({ school: S.school.code, grade: S.cls.grade, cls: S.cls.id, locked: on }) });
+    if (boardData) boardData.locked = on; renderBoard(false); toast(on ? '학생 글쓰기를 잠갔어요' : '학생 글쓰기를 다시 열었어요');
+  } catch(e) { toast(e.message); }
+}
+async function ack(b){
+  const id = b.dataset.ack; b.disabled = true;
+  try { const j = await api(`/api/board/${encodeURIComponent(id)}/ack`, { method: 'POST', body: JSON.stringify({ token: TOKEN }) });
+    const p = boardPosts().find(x => x.id === id); if (p) Object.assign(p, j.post);
+    renderBoard(false); renderDstrip(); bump($(`#board [data-id="${CSS.escape(id)}"] .ackc`)); toast('확인했다고 선생님께 전했어요');
+  } catch(e) { toast(e.message); b.disabled = false; }
+}
+async function hidePost(b){
+  const id = b.dataset.hide, h = b.dataset.h === '1';
+  try { await api(`/api/board/${encodeURIComponent(id)}/hide`, { method: 'POST', body: JSON.stringify({ token: TOKEN, hidden: h }) });
+    const p = boardPosts().find(x => x.id === id); if (p) p.hidden = h;
+    renderBoard(false); renderDstrip(); toast(h ? '숨겼어요 (학생들에게 안 보여요)' : '다시 보이게 했어요');
+  } catch(e) { toast(e.message); }
+}
+function openTeach(){
+  $('#tCode').value = '';
+  const on = !!TEACHER;
+  $('#tIn').hidden = on; $('#tOn').hidden = !on;
+  if (on) $('#tWho').textContent = `${TEACHER.schoolName} ${TEACHER.name} 선생님`;
+  $('#teachDlg').showModal();
+}
+$('#teachRow').onclick = openTeach;
+$('#tClose').onclick = () => $('#teachDlg').close();
+$('#tGo').onclick = async () => {
+  const code = $('#tCode').value.trim(); if (!code) return toast('코드를 넣어 주세요');
+  $('#tGo').disabled = true;
+  try {
+    const j = await api('/api/teacher/login', { method: 'POST', body: JSON.stringify({ code }) });
+    TEACHER = { token: j.token, name: j.name, school: j.school, schoolName: j.schoolName }; store.set('teacher', TEACHER);
+    $('#teachDlg').close(); drawTeachRow(); toast(`${j.name} 선생님, 반갑습니다! 우리 반 탭에서 관리할 수 있어요`);
+    boardWait = 0; memoWait = 0; loadBoard(); loadMemos();
+  } catch(e) { toast(e.message); }
+  $('#tGo').disabled = false;
+};
+$('#tOut').onclick = () => { TEACHER = null; store.del('teacher'); $('#teachDlg').close(); drawTeachRow(); boardWait = 0; loadBoard(); loadMemos(); toast('선생님 모드를 껐어요'); };
+function drawTeachRow(){ $('#teachLbl').textContent = TEACHER ? `${TEACHER.name} 선생님 (${TEACHER.schoolName})` : '선생님이세요? 코드 넣기'; }
+
 // 새 글 시트
 let pKind = 'event', pTag = '시험';
 const ymdIn = n => { const d = kstNow(); d.setDate(d.getDate() + n); return ymdOf(d); };
@@ -709,6 +803,9 @@ function openPost(kind){
   if (!ready()) return;
   $('#pWho').textContent = `${S.school.name} ${clsName(S.cls)}`;
   $('#pNick').value = store.get('nick', '');
+  $('#pNickF').hidden = isTeacher();
+  $('#pTeach').hidden = !isTeacher();
+  if (isTeacher()) $('#pTeach').textContent = `${TEACHER.name} 선생님 이름으로 올라가고, 학생들이 '확인했어요'를 누를 수 있어요`;
   $('#pText').value = ''; $('#pBody').value = '';
   $('#pOpts').innerHTML = ''; addOpt(); addOpt();
   setPKind(kind || 'event');
@@ -744,7 +841,7 @@ $('#postClose').onclick = $('#pCancel').onclick = () => $('#postDlg').close();
 let posting = false;
 $('#pSend').onclick = async () => {
   if (posting) return;
-  if (!store.get('rulesOk', false)) return withRules(() => $('#pSend').click());
+  if (!isTeacher() && !store.get('rulesOk', false)) return withRules(() => $('#pSend').click());
   const text = (pKind === 'notice' ? $('#pBody') : $('#pText')).value.trim();
   if (!text) { toast('내용을 써 주세요'); return; }
   const body = { token: TOKEN, school: S.school.code, grade: S.cls.grade, cls: S.cls.id, kind: pKind, text, nick: $('#pNick').value.trim() };
@@ -848,6 +945,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) retur
 window.addEventListener('online', () => { load(true); loadMemos(); loadBoard(); });
 
 window.__back = () => {
+  if ($('#teachDlg').open) { $('#teachDlg').close(); return true; }
   if ($('#rulesDlg').open) { $('#rulesDlg').close(); return true; }
   if ($('#postDlg').open) { $('#postDlg').close(); return true; }
   for (const id of ['#memoDlg', '#schoolDlg']) if ($(id).open) { if (id !== '#schoolDlg' || S.school || $('#dlg').open) $(id).close(); return true; }
@@ -858,6 +956,7 @@ window.__back = () => {
 };
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 applyTheme(); placeTabPill(); render();
+if (TEACHER) api('/api/teacher/me').then(j => { TEACHER = { ...TEACHER, name: j.name, schoolName: j.schoolName }; store.set('teacher', TEACHER); }).catch(() => {});
 if (!S.school) openSchool();
 else if (!S.cls) openSettings();
 else { load(); loadMemos(); loadBoard(); }

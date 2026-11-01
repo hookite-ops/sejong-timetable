@@ -20,6 +20,9 @@ const DATA_DIR = env.DATA_DIR || path.join(__dirname, 'data');
 const SALT = env.MEMO_SALT || 'sejong-timetable-memo-v1';
 const COL = env.MEMO_COLLECTION || 'memos';
 const BOARD_COL = env.BOARD_COLLECTION || 'board';   // 우리 반 게시판(공지·준비물·일정·투표)
+// 선생님 모드: 운영자가 ADMIN_KEY로 /admin.html에서 선생님 코드를 발급 → 선생님이 앱에 코드를 넣으면 그 학교 반들을 관리
+const ADMIN_KEY = (env.ADMIN_KEY || '').trim();
+const TSECRET = ADMIN_KEY ? crypto.createHash('sha256').update('sejong-teacher:' + ADMIN_KEY).digest() : null;
 const META = 'http://metadata.google.internal/computeMetadata/v1/';
 const MIN = 60e3, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const LIM = {
@@ -279,7 +282,7 @@ function applyReport(d, tokMark, ipMark) {
 }
 
 // ---------- 저장소 (메모·게시판 공통) ----------
-function normDoc(o) { o.reporters = o.reporters || []; o.ipVotes = o.ipVotes || []; o.reports = o.reports || 0; o.hidden = !!o.hidden;
+function normDoc(o) { o.reporters = o.reporters || []; o.ipVotes = o.ipVotes || []; o.reports = o.reports || 0; o.hidden = !!o.hidden; if (o.teacher) o.acks = o.acks || [];
   if (o.kind === 'poll') { o.options = o.options || []; o.votes = o.votes || []; } return o; }
 function reportMut(d, tokMark, ipMark) {
   const r = applyReport(d, tokMark, ipMark);
@@ -408,7 +411,7 @@ async function pickStore() {
   }
   return col => new LocalStore(DATA_DIR, col);
 }
-let store, board;
+let store, board, teachersSt, cfgSt;
 
 // 같은 반·주 메모 목록은 25초 캐시 + 동시 요청 합치기 (Firestore 읽기 비용 절약)
 // 이 인스턴스에서 쓰기·삭제·신고하면 바로 무효화(dropMemos). 다른 인스턴스의 새 메모는 최대 25초 늦게 보임
@@ -443,9 +446,11 @@ const boardKey = (school, grade, cls) => [school, grade, cls, 'y' + schoolYear()
 const KINDS = ['notice', 'item', 'event', 'poll'];
 const TAGS = ['시험', '수행평가', '숙제', '행사', '기타'];
 const VOTE_ID = me => me.slice(0, 24);
-function pubPost(d, me) {
+function pubPost(d, me, isT) {
   const o = { id: d.id, kind: d.kind, text: d.text, nick: d.nick, at: d.createdAt, ymd: d.ymd || '', tag: d.tag || '',
     mine: !!me && d.ownerHash === me, reported: !!me && d.reporters.includes('t:' + me) };
+  if (d.teacher) Object.assign(o, { teacher: true, acks: d.acks.length, myAck: !!me && d.acks.includes(VOTE_ID(me)) });
+  if (isT) Object.assign(o, { reports: d.reports, hidden: d.hidden });   // 선생님에게만 신고 수·숨김 여부
   if (d.kind === 'poll') {
     const counts = d.options.map(() => 0); let myVote = -1;
     for (const v of d.votes) { const [i, who] = String(v).split(':'); if (counts[+i] !== undefined) counts[+i]++; if (me && who === VOTE_ID(me)) myVote = +i; }
@@ -459,8 +464,48 @@ function stillShown(d, todayYmd) {
   if (d.kind === 'item' || d.kind === 'event') return !d.ymd || d.ymd >= ymdOf(addDays(parseYmd(todayYmd), -14));
   return age < (d.kind === 'notice' ? 60 : 30) * DAY;
 }
-const pub = (d, me) => ({ id: d.id, ymd: d.ymd, period: d.period, text: d.text, nick: d.nick, at: d.createdAt,
-  mine: !!me && d.ownerHash === me, reported: !!me && d.reporters.includes('t:' + me) });
+const pub = (d, me, isT) => ({ id: d.id, ymd: d.ymd, period: d.period, text: d.text, nick: d.nick, at: d.createdAt,
+  mine: !!me && d.ownerHash === me, reported: !!me && d.reporters.includes('t:' + me), ...(d.teacher ? { teacher: true } : {}),
+  ...(isT ? { reports: d.reports, hidden: d.hidden } : {}) });
+
+// ---------- 선생님 ----------
+const tCodeHash = c => hash('tcode:' + String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
+const listTeachers = () => listOf(teachersSt, 't');
+function signTeacher(t) {
+  const body = Buffer.from(JSON.stringify({ tid: t.id, exp: Date.now() + 365 * DAY })).toString('base64url');
+  return body + '.' + crypto.createHmac('sha256', TSECRET).update(body).digest('base64url');
+}
+// 요청의 X-Teacher 토큰 확인 → { id, school, name } 또는 null (코드가 취소되면 바로 무효)
+async function teacherOf(req) {
+  const tk = String(req.headers['x-teacher'] || '');
+  if (!TSECRET || !tk || tk.length > 400) return null;
+  const [body, sig] = tk.split('.');
+  if (!body || !sig) return null;
+  const want = crypto.createHmac('sha256', TSECRET).update(body).digest('base64url');
+  if (sig.length !== want.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want))) return null;
+  let o; try { o = JSON.parse(Buffer.from(body, 'base64url').toString()); } catch (e) { return null; }
+  if (!o.exp || o.exp < Date.now()) return null;
+  const t = (await listTeachers()).find(x => x.id === o.tid && x.active);
+  return t ? { id: t.id, school: t.school, schoolName: t.schoolName, name: t.name } : null;
+}
+// 반 설정(글쓰기 잠금 등): 반마다 문서 하나
+const cfgId = key => crypto.createHash('sha256').update('cfg:' + key).digest('hex').slice(0, 20);
+const cfgCache = new Map();
+async function getCfg(key) {
+  const c = cfgCache.get(key);
+  if (c && Date.now() - c.t < 20e3) return c.v;
+  const d = await cfgSt.get(cfgId(key));
+  const v = { locked: !!(d && d.locked) };
+  cfgCache.set(key, { t: Date.now(), v }); if (cfgCache.size > 3000) cfgCache.delete(cfgCache.keys().next().value);
+  return v;
+}
+async function setCfg(key, patch) {
+  const id = cfgId(key);
+  const r = await cfgSt.mutate(id, () => ({ patch, result: true }));
+  if (!r) await cfgSt.create({ id, key, ...patch, createdAt: Date.now() });
+  cfgCache.delete(key);
+}
+const adminOk = req => { const k = String(req.headers['x-admin-key'] || ''); return !!ADMIN_KEY && k.length === ADMIN_KEY.length && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(ADMIN_KEY)); };
 
 // ---------- HTTP ----------
 function httpErr(code, msg) { const e = new Error(msg); e.code = code; e.public = true; return e; }
@@ -513,7 +558,7 @@ async function api(req, res, u) {
     return send(res, 200, await getTimetable(sc, cls, mondayOf(d)));
   }
   if (p === '/api/status') {
-    const out = { store: store.mode, schools: SCH.list ? SCH.list.length : null, neisKey: !!NEIS_KEY };
+    const out = { store: store.mode, schools: SCH.list ? SCH.list.length : null, neisKey: !!NEIS_KEY, teacherMode: !!TSECRET };
     if (store.root) out.project = store.root.split('/')[1];
     try { await store.list('__ping__'); out.memoStore = 'ok'; }
     catch (e) {   // 원인만 짧게 (토큰·키 같은 비밀은 안 나감)
@@ -529,8 +574,9 @@ async function api(req, res, u) {
     const d = weekOk(q.week);
     if (!d) throw httpErr(400, '날짜가 이상해요 (오늘 앞뒤 1년만 볼 수 있어요)');
     const tok = req.headers['x-memo-token'], me = validToken(tok) ? hash(tok) : null;
-    const list = (await listMemos(memoKey(sc.code, cls.grade, cls.id, mondayOf(d)))).filter(m => !m.hidden)
-      .sort((a, b) => a.createdAt - b.createdAt).map(m => pub(m, me));
+    const T = await teacherOf(req), isT = !!T && T.school === sc.code;
+    const list = (await listMemos(memoKey(sc.code, cls.grade, cls.id, mondayOf(d)))).filter(m => isT || !m.hidden)
+      .sort((a, b) => a.createdAt - b.createdAt).map(m => pub(m, me, isT));
     return send(res, 200, { memos: list });
   }
   if (p === '/api/memos' && req.method === 'POST') {
@@ -543,6 +589,8 @@ async function api(req, res, u) {
     const limOk = count => lim.every(([k, max, win]) => rateOk(k, max, false, win)) && (!count || lim.every(([k, max, win]) => rateOk(k, max, true, win)));
     if (!limOk(false)) throw httpErr(429, rateMsg);
     const { sc, cls } = await resolveClass({ school: String(b.school || ''), grade: String(b.grade ?? ''), cls: String(b.cls ?? '') });
+    const T = await teacherOf(req), isT = !!T && T.school === sc.code;
+    if (!isT && (await getCfg(boardKey(sc.code, cls.grade, cls.id))).locked) throw httpErr(403, '선생님이 지금은 글쓰기를 잠가 두었어요');
     const day = parseYmd(String(b.ymd || ''));
     if (!day || day.getUTCDay() === 0 || day.getUTCDay() === 6) throw httpErr(400, '날짜가 이상해요');
     const today = parseYmd(ymdOf(kst()));
@@ -565,12 +613,13 @@ async function api(req, res, u) {
     if (existing.filter(m => !m.hidden && m.ymd === ymdOf(day) && m.period === period).length >= LIM.perCell) throw httpErr(429, '이 교시엔 메모가 너무 많아요');
     const doc = { id: crypto.randomBytes(10).toString('hex'), key, school: sc.code, grade: cls.grade, cls: cls.id, ymd: ymdOf(day), period,
       text: t.text, nick: n.text || '익명', createdAt: Date.now(), ownerHash: hash(b.token), reports: 0, reporters: [], ipVotes: [], hidden: false };
+    if (isT) Object.assign(doc, { teacher: true, nick: T.name + ' 선생님' });
     if (!limOk(true) || !rateOk('p:k:' + key, LIM.postPerKey)) throw httpErr(429, rateMsg); // 동시에 몰린 요청 대비 다시 확인하며 셈
     await store.create(doc);
     dropMemos(key);
-    return send(res, 201, { memo: pub(doc, doc.ownerHash) });
+    return send(res, 201, { memo: pub(doc, doc.ownerHash, isT) });
   }
-  let m = p.match(/^\/api\/memos\/([a-f0-9]{20})(\/report)?$/);
+  let m = p.match(/^\/api\/memos\/([a-f0-9]{20})(\/report|\/hide)?$/);
   if (m && ((req.method === 'DELETE' && !m[2]) || (req.method === 'POST' && m[2]))) {
     if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
     const b = await readJson(req);
@@ -578,8 +627,15 @@ async function api(req, res, u) {
     const me = hash(b.token);
     const d = await store.get(m[1]);
     if (!d) throw httpErr(404, '이미 지워진 메모예요');
+    const T = await teacherOf(req), isT = !!T && T.school === d.school;
+    if (m[2] === '/hide') {   // 선생님: 숨기기·다시 보이기
+      if (!isT) throw httpErr(403, '선생님만 할 수 있어요');
+      await store.mutate(d.id, () => ({ patch: { hidden: !!b.hidden }, result: true }));
+      dropMemos(d.key);
+      return send(res, 200, { ok: true, hidden: !!b.hidden });
+    }
     if (!m[2]) {
-      if (d.ownerHash !== me) throw httpErr(403, '내가 쓴 메모만 지울 수 있어요');
+      if (d.ownerHash !== me && !isT) throw httpErr(403, '내가 쓴 메모만 지울 수 있어요');
       await store.remove(d.id);
       dropMemos(d.key);
       return send(res, 200, { ok: true });
@@ -597,10 +653,11 @@ async function api(req, res, u) {
   if (p === '/api/board' && req.method === 'GET') {
     const { sc, cls } = await resolveClass(q);
     const tok = req.headers['x-memo-token'], me = validToken(tok) ? hash(tok) : null;
-    const today = ymdOf(kst());
-    const list = (await listOf(board, boardKey(sc.code, cls.grade, cls.id))).filter(d => !d.hidden && stillShown(d, today))
-      .sort((a, b) => b.createdAt - a.createdAt).map(d => pubPost(d, me));
-    return send(res, 200, { posts: list, today });
+    const T = await teacherOf(req), isT = !!T && T.school === sc.code;
+    const today = ymdOf(kst()), key = boardKey(sc.code, cls.grade, cls.id);
+    const list = (await listOf(board, key)).filter(d => (isT || !d.hidden) && stillShown(d, today))
+      .sort((a, b) => b.createdAt - a.createdAt).map(d => pubPost(d, me, isT));
+    return send(res, 200, { posts: list, today, locked: (await getCfg(key)).locked, teacher: isT });
   }
   if (p === '/api/board' && req.method === 'POST') {
     if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
@@ -612,6 +669,8 @@ async function api(req, res, u) {
     const limOk = count => lim.every(([k, max, win]) => rateOk(k, max, false, win)) && (!count || lim.every(([k, max, win]) => rateOk(k, max, true, win)));
     if (!limOk(false)) throw httpErr(429, rateMsg);
     const { sc, cls } = await resolveClass({ school: String(b.school || ''), grade: String(b.grade ?? ''), cls: String(b.cls ?? '') });
+    const T = await teacherOf(req), isT = !!T && T.school === sc.code;
+    if (!isT && (await getCfg(boardKey(sc.code, cls.grade, cls.id))).locked) throw httpErr(403, '선생님이 지금은 글쓰기를 잠가 두었어요');
     const kind = String(b.kind || '');
     if (!KINDS.includes(kind)) throw httpErr(400, '종류가 이상해요');
     const MAXLEN = { notice: 200, item: 60, event: 40, poll: 80 };
@@ -639,6 +698,7 @@ async function api(req, res, u) {
       if (clean.length < 2 || clean.length > 5) throw httpErr(400, '선택지는 2~5개예요');
       doc.options = clean; doc.votes = [];
     }
+    if (isT) Object.assign(doc, { teacher: true, acks: [], nick: T.name + ' 선생님' });
     const key = doc.key;
     if (!rateOk('b:k:' + key, LIM.boardPerKey, false)) throw httpErr(429, '우리 반에 글이 너무 빨리 올라오고 있어요. 잠시 뒤에 해 주세요');
     const existing = (await listOf(board, key)).filter(d => !d.hidden && d.kind === kind && stillShown(d, ymdOf(kst())));
@@ -646,18 +706,35 @@ async function api(req, res, u) {
     if (!limOk(true) || !rateOk('b:k:' + key, LIM.boardPerKey)) throw httpErr(429, rateMsg);
     await board.create(doc);
     dropList(board, key);
-    return send(res, 201, { post: pubPost(normDoc(doc), doc.ownerHash) });
+    return send(res, 201, { post: pubPost(normDoc(doc), doc.ownerHash, isT) });
   }
-  m = p.match(/^\/api\/board\/([a-f0-9]{20})(\/report|\/vote)?$/);
+  m = p.match(/^\/api\/board\/([a-f0-9]{20})(\/report|\/vote|\/ack|\/hide)?$/);
   if (m && ((req.method === 'DELETE' && !m[2]) || (req.method === 'POST' && m[2]))) {
     if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
     const b = await readJson(req);
     if (!validToken(b.token)) throw httpErr(400, '기기 토큰이 없어요');
     const me = hash(b.token), ip = clientIp(req);
     const d = await board.get(m[1]);
-    if (!d || d.hidden) throw httpErr(404, '이미 지워진 글이에요');
+    const T = await teacherOf(req), isT = !!T && !!d && T.school === d.school;
+    if (!d || (d.hidden && !isT)) throw httpErr(404, '이미 지워진 글이에요');
+    if (m[2] === '/hide') {
+      if (!isT) throw httpErr(403, '선생님만 할 수 있어요');
+      await board.mutate(d.id, () => ({ patch: { hidden: !!b.hidden }, result: true }));
+      dropList(board, d.key);
+      return send(res, 200, { ok: true, hidden: !!b.hidden });
+    }
+    // 선생님 글 '확인했어요': 기기 하나에 한 번
+    if (m[2] === '/ack') {
+      if (!d.teacher) throw httpErr(400, '선생님 글만 확인할 수 있어요');
+      if (!rateOk('a:t:' + b.token, LIM.votePerDevice)) throw httpErr(429, '너무 빨리 누르고 있어요');
+      const vid = VOTE_ID(me);
+      const r = await board.mutate(d.id, x => x.acks.includes(vid) || x.acks.length >= 500 ? { result: { doc: x } } : { patch: { acks: [...x.acks, vid] }, result: { doc: { ...x, acks: [...x.acks, vid] } } });
+      if (!r) throw httpErr(404, '이미 지워진 글이에요');
+      dropList(board, d.key);
+      return send(res, 200, { post: pubPost(r.doc, me, isT) });
+    }
     if (!m[2]) {
-      if (d.ownerHash !== me) throw httpErr(403, '내가 쓴 글만 지울 수 있어요');
+      if (d.ownerHash !== me && !isT) throw httpErr(403, '내가 쓴 글만 지울 수 있어요');
       await board.remove(d.id); dropList(board, d.key);
       return send(res, 200, { ok: true });
     }
@@ -683,7 +760,65 @@ async function api(req, res, u) {
     if (!r) throw httpErr(404, '이미 지워진 글이에요');
     if (r.full) throw httpErr(429, '투표 인원이 꽉 찼어요');
     dropList(board, d.key);
-    return send(res, 200, { post: pubPost(r.doc, me) });
+    return send(res, 200, { post: pubPost(r.doc, me, isT) });
+  }
+
+  // ---------- 선생님 로그인·반 잠금 ----------
+  if (p === '/api/teacher/login' && req.method === 'POST') {
+    if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
+    if (!TSECRET) throw httpErr(503, '선생님 모드가 아직 켜지지 않았어요');
+    const ip = clientIp(req);
+    if (!rateOk('tl:' + ip, 5) || !rateOk('tlh:' + ip, 30, true, HOUR)) throw httpErr(429, '시도가 너무 많아요. 잠시 뒤에 해 주세요');
+    const b = await readJson(req);
+    const t = (await listTeachers()).find(x => x.active && x.codeHash === tCodeHash(b.code));
+    if (!t) throw httpErr(400, '코드가 맞지 않아요');
+    return send(res, 200, { token: signTeacher(t), name: t.name, school: t.school, schoolName: t.schoolName });
+  }
+  if (p === '/api/teacher/me' && req.method === 'GET') {
+    const T = await teacherOf(req);
+    if (!T) throw httpErr(401, '선생님 확인이 안 돼요. 코드를 다시 넣어 주세요');
+    return send(res, 200, T);
+  }
+  if (p === '/api/teacher/lock' && req.method === 'POST') {
+    if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
+    const b = await readJson(req);
+    const { sc, cls } = await resolveClass({ school: String(b.school || ''), grade: String(b.grade ?? ''), cls: String(b.cls ?? '') });
+    const T = await teacherOf(req);
+    if (!T || T.school !== sc.code) throw httpErr(403, '이 학교 선생님만 할 수 있어요');
+    await setCfg(boardKey(sc.code, cls.grade, cls.id), { locked: !!b.locked });
+    return send(res, 200, { locked: !!b.locked });
+  }
+
+  // ---------- 운영자: 선생님 코드 발급 (ADMIN_KEY) ----------
+  if (p.startsWith('/api/admin/')) {
+    if (!rateOk('ad:' + clientIp(req), 30)) throw httpErr(429, '요청이 너무 많아요');
+    if (!adminOk(req)) throw httpErr(401, '운영자 키가 맞지 않아요');
+    if (p === '/api/admin/teachers' && req.method === 'GET') {
+      const list = (await listTeachers()).sort((a, b) => b.createdAt - a.createdAt)
+        .map(t => ({ id: t.id, name: t.name, school: t.school, schoolName: t.schoolName, active: t.active, at: t.createdAt, hint: t.hint }));
+      return send(res, 200, { teachers: list });
+    }
+    if (p === '/api/admin/teachers' && req.method === 'POST') {
+      const b = await readJson(req);
+      const sc = await findSchool(String(b.school || ''));
+      if (!sc) throw httpErr(400, '세종 학교를 골라 주세요');
+      const nm = cleanText(b.name, 10, true);
+      if (nm.tooLong || !nm.text) throw httpErr(400, '선생님 이름(10자까지)을 써 주세요');
+      const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const raw = [...crypto.randomBytes(10)].map(x => A[x % A.length]).join('');
+      const code = 'T-' + raw.slice(0, 5) + '-' + raw.slice(5);
+      const doc = { id: crypto.randomBytes(10).toString('hex'), key: 't', name: nm.text, school: sc.code, schoolName: sc.name,
+        codeHash: tCodeHash(code), hint: raw.slice(-2), active: true, createdAt: Date.now() };
+      await teachersSt.create(doc); dropList(teachersSt, 't');
+      return send(res, 201, { code, teacher: { id: doc.id, name: doc.name, schoolName: doc.schoolName } });
+    }
+    const mm = p.match(/^\/api\/admin\/teachers\/([a-f0-9]{20})\/(revoke|restore)$/);
+    if (mm && req.method === 'POST') {
+      const r = await teachersSt.mutate(mm[1], () => ({ patch: { active: mm[2] === 'restore' }, result: true }));
+      if (!r) throw httpErr(404, '없는 선생님이에요');
+      dropList(teachersSt, 't');
+      return send(res, 200, { ok: true });
+    }
   }
   throw httpErr(404, '없는 주소');
 }
@@ -722,10 +857,10 @@ const server = http.createServer(async (req, res) => {
 
 (async () => {
   const make = await pickStore();
-  store = make(COL); board = make(BOARD_COL);
+  store = make(COL); board = make(BOARD_COL); teachersSt = make('teachers'); cfgSt = make('classcfg');
   server.listen(PORT, () => console.log(`세종 시간표 서버 :${PORT} (메모 저장: ${store.mode})`));
   getSchools().catch(e => console.warn('학교 목록 미리 받기 실패:', e.message));
 })();
-const bye = () => { for (const st of [store, board]) if (st && st.flush) st.flush(); process.exit(0); };
+const bye = () => { for (const st of [store, board, teachersSt, cfgSt]) if (st && st.flush) st.flush(); process.exit(0); };
 process.on('SIGTERM', bye);
 process.on('SIGINT', bye);
