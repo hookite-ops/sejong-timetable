@@ -70,10 +70,13 @@ function getToken(){
   return t;
 }
 const TOKEN = getToken();
+(function(){ try { if (store.get('skinV', 0) < 2) { if (store.get('skin', 'galaxy') === '') store.set('skin', 'galaxy'); store.set('skinV', 2); } } catch (e) {} })();
+// 가벼운 진동 (갤럭시처럼 톡): 지원하는 기기에서만
+const haptic = (ms = 8) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 let S = { school: store.get('school', null), cls: store.get('cls', null), theme: store.get('theme', 'auto'),
   skin: store.get('skin', 'galaxy'), fs: store.get('fs', 1), rm: store.get('rm', false), full: store.get('full', false) };
 const SKINS = [
-  { id: 'galaxy', name: 'One UI', e: '📱', b: '#f2f2f4', c: '#ffffff', a: '#2f6fe8' },
+  { id: 'galaxy', name: '갤럭시', e: '📱', b: '#f2f2f4', c: '#ffffff', a: '#2f6fe8' },
   { id: '', name: '새싹', e: '🌱', b: '#f3f5f2', c: '#ffffff', a: '#1f8a5b' },
   { id: 'otter', name: '수달', e: '🦦', b: '#f6efe6', c: '#fffaf3', a: '#2f7aa0' },
   { id: 'jungle', name: '정글', e: '🐒', b: '#edf3e4', c: '#fbfdf6', a: '#2e7a32' },
@@ -346,6 +349,10 @@ function renderNow(periods, now, today){
     box.classList.toggle('idle', idle); box.classList.toggle('cta', !ready()); box.setAttribute('style', hs || '');
     nowTarget = target || null;
     const ms = target ? cellMemos(target.ymd, target.p) : [];
+    const lb = $('#nowLeft b'), ls = $('#nowLeft span');
+    $('#heroNow').hidden = !ready();
+    $('#heroNow').classList.toggle('live', !idle && !!lb);
+    $('#heroNowT').textContent = (lbl + ' · ' + subj).replace(/ ›$/, '') + (lb ? ` · ${lb.textContent} ${ls ? ls.textContent : ''}` : '');
     $('#nowMemo').innerHTML = ms.length ? `<em>메모 ${ms.length}</em><span>${esc(ms[ms.length-1].text.split('\n')[0])}</span>` : '';
   };
   const wd = now.getDay();
@@ -524,7 +531,7 @@ $('#cPick').onclick = e => {
 $('#theme').onclick = e => { const b = e.target.closest('[data-v]'); if (!b || b.dataset.v === draft.theme) return; draft.theme = b.dataset.v; withFade(() => { applyTheme(draft); drawSettings(); }, b); };
 $('#skins').onclick = e => {
   const b = e.target.closest('[data-skin]'); if (!b || b.dataset.skin === draft.skin) return;
-  draft.skin = b.dataset.skin;
+  draft.skin = b.dataset.skin; haptic(10);
   withFade(() => { applyTheme(draft); drawSettings(); }, b);
   const sw = $(`#skins [data-skin="${draft.skin}"] .sw`);
   if (sw && !RM.matches) sw.animate([{ transform: 'scale(.85) rotate(-10deg)' }, { transform: 'scale(1.12) rotate(6deg)', offset: .5 }, { transform: 'none' }], { duration: 420, easing: EASE });
@@ -1007,7 +1014,7 @@ $('#list').onclick = e => {
 };
 $('#grid').onclick = e => { const td = e.target.closest('td[data-p]'); if (td) openMemo(td.dataset.d, +td.dataset.p); };
 const MODES = ['day', 'week', 'board'];
-function placeTabPill(){ $('#tpill').style.transform = `translateX(${MODES.indexOf(mode) * 78}px)`; }
+function placeTabPill(){ $('#tpill').style.transform = `translateX(${MODES.indexOf(mode) * 100}%)`; }
 function setMode(m){
   if (m === mode) return;
   const dir = Math.sign(MODES.indexOf(m) - MODES.indexOf(mode));
@@ -1015,6 +1022,7 @@ function setMode(m){
   document.body.classList.toggle('week', m === 'week'); document.body.classList.toggle('mboard', m === 'board');
   $('#tDay').classList.toggle('on', m === 'day'); $('#tWeek').classList.toggle('on', m === 'week'); $('#tClass').classList.toggle('on', m === 'board');
   placeTabPill();
+  const ic = document.querySelector('.tabbar button.on svg'); if (ic && !RM.matches) ic.animate([{ transform: 'scale(.8) translateY(2px)' }, { transform: 'scale(1.12) translateY(-2px)', offset: .55 }, { transform: 'none' }], { duration: 380, easing: EASE });
   window.scrollTo({ top: 0 });
   if (m === 'board') { renderBoard(true, dir); loadBoard(); }
   else {
@@ -1022,10 +1030,14 @@ function setMode(m){
     else enter([$('#now'), $('#dstrip'), $('.weeknav'), ...$('#grid').querySelectorAll('tr')], { x: dir * 26, y: 0, stagger: 22, dur: 300 });
   }
 }
-$('#tDay').onclick = () => setMode('day');
-$('#tWeek').onclick = () => setMode('week');
-$('#tClass').onclick = () => { if (!ready()) return S.school ? openSettings() : openSchool(); setMode('board'); };
-$('#days').onclick = e => { const b = e.target.closest('.day'); if (!b || b.dataset.d === selDay) return; navDir = b.dataset.d > selDay ? 1 : -1; selDay = b.dataset.d; render(); };
+// 큰 제목 아래 '지금' 줄: 누르면 지금 교시(없으면 시간표)로 부드럽게
+$('#heroNow').onclick = () => { haptic(); if (mode !== 'day') setMode('day');
+  requestAnimationFrame(() => { const r = $('#list .row.cur') || $('#now'); const y = r.getBoundingClientRect().top + scrollY - innerHeight * .35;
+    scrollTo({ top: Math.max(0, y), behavior: RM.matches ? 'auto' : 'smooth' }); if (r.classList.contains('row')) setTimeout(() => !RM.matches && r.animate([{ scale: '1' }, { scale: '1.03' }, { scale: '1' }], { duration: 420, easing: EASE }), 420); }); };
+$('#tDay').onclick = () => { haptic(); setMode('day'); };
+$('#tWeek').onclick = () => { haptic(); setMode('week'); };
+$('#tClass').onclick = () => { haptic(); if (!ready()) return S.school ? openSettings() : openSchool(); setMode('board'); };
+$('#days').onclick = e => { const b = e.target.closest('.day'); if (!b || b.dataset.d === selDay) return; haptic(6); navDir = b.dataset.d > selDay ? 1 : -1; selDay = b.dataset.d; render(); };
 const shiftWeek = n => { navDir = Math.sign(n); weekOffset += n; data = null; selDay = null; memos = stashedMemos(); render(); load(); loadMemos(); };
 $('#prevW').onclick = () => shiftWeek(-1);
 $('#nextW').onclick = () => shiftWeek(1);

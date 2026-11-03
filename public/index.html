@@ -484,7 +484,7 @@ dialog{box-shadow:0 -10px 40px rgba(0,0,0,.18)}
    2) 스크롤에 따라 움직이는 애니메이션은 CSS scroll-timeline이라 메인 스레드가 바빠도 부드러움
    3) transform/opacity만 움직임 */
 .ohero{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;gap:6px;
-  height:calc(var(--sa-top,env(safe-area-inset-top)) + 168px);padding:var(--sa-top,env(safe-area-inset-top)) 8px 22px;transform-origin:50% 100%}
+  height:calc(var(--sa-top,env(safe-area-inset-top)) + 206px);padding:var(--sa-top,env(safe-area-inset-top)) 8px 22px;transform-origin:50% 100%}
 .ohero b{font-size:34px;font-weight:800;letter-spacing:-1px;line-height:1.1;word-break:keep-all}
 .ohero span{font-size:15px;font-weight:500;color:var(--sub)}
 header{position:sticky;top:0;z-index:20;margin:0 -16px 12px;padding:calc(var(--sa-top,env(safe-area-inset-top)) + 8px) 18px 10px;align-items:center}
@@ -493,9 +493,9 @@ header::before{content:'';position:absolute;inset:0;z-index:-1;background:color-
 .brand #dateLbl{font-size:19px}
 .brand small{font-size:12.5px}
 @supports (animation-timeline:scroll()){
-  .ohero{animation:oh-out linear both;animation-timeline:scroll(root);animation-range:0 140px}
-  header .bt{animation:hb-in linear both;animation-timeline:scroll(root);animation-range:110px 165px}
-  header::before{animation:hbg-in linear both;animation-timeline:scroll(root);animation-range:120px 168px}
+  .ohero{animation:oh-out linear both;animation-timeline:scroll(root);animation-range:0 175px}
+  header .bt{animation:hb-in linear both;animation-timeline:scroll(root);animation-range:150px 200px}
+  header::before{animation:hbg-in linear both;animation-timeline:scroll(root);animation-range:160px 205px}
   /* 카드가 아래에서 화면에 들어올 때 살짝 떠오름 (누를 때 쓰는 transform과 겹치지 않게 translate·scale 따로) */
   .row,.pcard,.igroup,.bsec{animation:rise-in linear both;animation-timeline:view();animation-range:entry 0% entry 80%}
 }
@@ -533,6 +533,48 @@ header::before{content:'';position:absolute;inset:0;z-index:-1;background:color-
 :root[data-skin="galaxy"] .pcard,:root[data-skin="galaxy"] .igroup,:root[data-skin="galaxy"] .day{border-radius:22px}
 :root[data-skin="galaxy"] .tabbar{border-radius:30px}
 :root[data-skin="galaxy"] dialog{border-radius:30px 30px 0 0}
+
+/* ================= 디테일: 빛과 그림자 =================
+   위에서 빛이 비치는 것처럼: 카드 윗선은 밝게, 아래로 부드러운 두 겹 그림자 (밝은 테마) / 어두운 테마는 그림자 대신 윗선만 은은하게 */
+:root{--hl:inset 0 1px 0 rgba(255,255,255,.75);--elev:0 1px 2px rgba(17,24,39,.04),0 6px 16px -6px rgba(17,24,39,.10)}
+:root[data-theme="dark"],:root[data-skin="night"]{--hl:inset 0 1px 0 rgba(255,255,255,.06);--elev:0 1px 0 rgba(0,0,0,.4)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]):not([data-skin]),:root[data-skin="galaxy"]:not([data-theme="light"]){--hl:inset 0 1px 0 rgba(255,255,255,.06);--elev:0 1px 0 rgba(0,0,0,.4)}}
+.row{box-shadow:inset 4px 0 0 hsl(var(--h,150) calc(var(--s,1) * var(--ns)) var(--nl)),var(--hl),var(--elev)!important}
+.row.done{box-shadow:inset 4px 0 0 var(--line),var(--hl)!important}
+.day,.pcard,.igroup,.chip,.mascot,.dcard{box-shadow:var(--hl),var(--elev)}
+.row.cur{background:linear-gradient(90deg,hsl(var(--h) calc(var(--s) * var(--ts)) var(--tl) / .55),var(--card) 60%)}
+/* 지금 카드: 유리처럼 윗면 하이라이트 + 아래 안쪽 그늘 + 색 그림자, 가끔 빛이 한 번 스쳐 지나감 */
+.now:not(.idle){box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -14px 28px -18px rgba(0,0,0,.35),0 18px 34px -18px var(--g2,hsl(var(--h) 50% 35%)),var(--elev)!important}
+.now:not(.idle)::after{content:'';position:absolute;top:-20%;bottom:-20%;left:0;width:38%;z-index:-1;pointer-events:none;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.16) 45%,rgba(255,255,255,.04) 60%,transparent);transform:translateX(-120%) skewX(-12deg);animation:sheen 7s var(--ease-out) 1.5s infinite}
+@keyframes sheen{0%,72%{transform:translateX(-120%) skewX(-12deg)}100%{transform:translateX(320%) skewX(-12deg)}}
+/* 진행 막대 끝이 은은하게 빛남 */
+.now .bar i{position:relative}
+.now .bar i::after{content:'';position:absolute;right:0;top:0;bottom:0;width:18px;border-radius:9px;background:radial-gradient(closest-side,#fff,rgba(255,255,255,0));animation:glow 1.8s ease-in-out infinite alternate}
+@keyframes glow{from{opacity:.35}to{opacity:1}}
+/* '지금' 표시: 숨 쉬듯 퍼지는 고리 */
+.row.cur .tag{position:relative}
+.row.cur .tag::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:0 0 0 2px hsl(var(--h) calc(var(--s) * var(--ns)) var(--nl));animation:ping 2.2s var(--ease-out) infinite}
+@keyframes ping{0%{transform:scale(1);opacity:.7}80%,100%{transform:scale(1.45,1.9);opacity:0}}
+/* 고른 요일: 아래로 테마색 그림자 */
+.dpill{box-shadow:0 8px 18px -8px var(--pill),inset 0 1px 0 rgba(255,255,255,.25)}
+/* 큰 제목 아래 '지금' 한 줄: 누르면 지금 교시로 */
+.hnow{display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:8px 14px;border-radius:999px;background:var(--card);box-shadow:var(--hl),var(--elev);font-size:14px;font-weight:600;color:var(--ink);max-width:100%;min-height:36px}
+.hnow span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hnow i{width:8px;height:8px;border-radius:50%;background:var(--sub);flex:none}
+.hnow.live i{background:#2fbf71;box-shadow:0 0 0 0 rgba(47,191,113,.6);animation:live 1.8s ease-out infinite}
+@keyframes live{0%{box-shadow:0 0 0 0 rgba(47,191,113,.55)}100%{box-shadow:0 0 0 9px rgba(47,191,113,0)}}
+/* 아래 탭: 아이콘+글자 (One UI), 유리 같은 막대 */
+.tabbar{grid-template-columns:repeat(4,76px)!important;gap:0!important;padding:6px!important;
+  background:color-mix(in srgb,var(--card) 80%,transparent)!important;-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 12px 32px -10px rgba(0,0,0,.28)!important}
+.tabbar .pill{left:6px!important;top:6px!important;bottom:6px!important;width:76px!important;box-shadow:0 6px 14px -6px var(--pill),inset 0 1px 0 rgba(255,255,255,.25)}
+.tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:7px 0 6px!important;font-size:11.5px!important;min-height:52px}
+.tabbar button svg{display:block}
+/* 시트(아래에서 올라오는 창): 윗선 하이라이트 */
+dialog{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 -12px 40px rgba(0,0,0,.2)}
+:root.rm .now::after,:root.rm .row.cur .tag::after,:root.rm .hnow i{animation:none!important}
+@media (prefers-reduced-motion:reduce){.now::after,.row.cur .tag::after,.hnow.live i,.now .bar i::after{animation:none!important}}
 [hidden]{display:none!important}
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
 </style>
@@ -540,7 +582,7 @@ header::before{content:'';position:absolute;inset:0;z-index:-1;background:color-
 <body>
 <div class="sky" id="sky" aria-hidden="true"></div>
 <div class="ptr" id="ptr" aria-hidden="true"><i>↓</i><span>당겨서 새로고침</span></div>
-<section class="ohero" id="ohero" aria-hidden="true"><b id="heroDate">시간표</b><span id="heroSub">세종 시간표</span></section>
+<section class="ohero" id="ohero"><b id="heroDate" aria-hidden="true">시간표</b><span id="heroSub">세종 시간표</span><button class="hnow" id="heroNow" hidden><i aria-hidden="true"></i><span id="heroNowT"></span></button></section>
 <header id="appbar">
   <div class="brand"><button class="mascot" id="mascot" aria-label="테마 바꾸기"></button><div class="bt"><small id="sub">세종 시간표</small><span id="dateLbl">시간표</span></div></div>
   <button class="chip" id="classBtn">학교 선택</button>
@@ -573,10 +615,10 @@ header::before{content:'';position:absolute;inset:0;z-index:-1;background:color-
 
 <nav class="tabbar">
   <i class="pill" id="tpill" aria-hidden="true"></i>
-  <button id="tDay" class="on">하루</button>
-  <button id="tWeek">한 주</button>
-  <button id="tClass">우리 반</button>
-  <button id="tSet">설정</button>
+  <button id="tDay" class="on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="4"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15.2" r="1.6" fill="currentColor" stroke="none"/></svg><span>하루</span></button>
+  <button id="tWeek"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="4"/><path d="M3.5 10h17M3.5 15h17M9.2 4.5v15M14.8 4.5v15"/></svg><span>한 주</span></button>
+  <button id="tClass"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><circle cx="16.6" cy="8.4" r="2.5"/><path d="M15.8 13.5c2.5-.2 4.3 1.3 4.8 4"/></svg><span>우리 반</span></button>
+  <button id="tSet"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5h9.5M18.5 7.5H20M4 16.5h3.5M12.5 16.5H20"/><circle cx="16" cy="7.5" r="2.4"/><circle cx="10" cy="16.5" r="2.4"/></svg><span>설정</span></button>
 </nav>
 
 <!-- 학교 찾기 -->
