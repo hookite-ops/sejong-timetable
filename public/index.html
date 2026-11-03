@@ -48,7 +48,7 @@ button:active:not(:disabled){transform:scale(.97)}
 /* 옆으로 미끄러지는 애니메이션이 화면 밖으로 나가도 페이지가 넓어지지(=작게 줌아웃되지) 않게 */
 html{background:var(--bg);overflow-x:hidden;overflow-x:clip}body{margin:0;background:transparent;color:var(--ink);overflow-x:hidden;overflow-x:clip}
 body{font-family:'IBM Plex Sans KR',system-ui,sans-serif;font-size:16px;line-height:1.4;-webkit-text-size-adjust:100%;
-  padding:calc(var(--sa-top,env(safe-area-inset-top)) + 10px) calc(var(--sa-right,env(safe-area-inset-right)) + 16px) calc(var(--sa-bottom,env(safe-area-inset-bottom)) + 104px) calc(var(--sa-left,env(safe-area-inset-left)) + 16px);max-width:560px;margin:0 auto;overscroll-behavior:none}
+  padding:0 calc(var(--sa-right,env(safe-area-inset-right)) + 16px) calc(var(--sa-bottom,env(safe-area-inset-bottom)) + 104px) calc(var(--sa-left,env(safe-area-inset-left)) + 16px);max-width:560px;margin:0 auto;overscroll-behavior:none}
 button:focus{outline:none}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
@@ -478,6 +478,61 @@ dialog{box-shadow:0 -10px 40px rgba(0,0,0,.18)}
 :root.rm *,:root.rm *::before,:root.rm *::after{transition-duration:120ms!important;transition-property:opacity,background-color,color,border-color!important;animation:none!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:2s!important}}
 :root[data-skin="contrast"] .row{border-color:var(--ink)}
+
+/* ================= 갤럭시(One UI) 느낌 =================
+   1) 큰 제목: 화면 위쪽에 날짜를 크게 → 스크롤하면 작아지며 위 막대에 붙음 (One UI 앱처럼)
+   2) 스크롤에 따라 움직이는 애니메이션은 CSS scroll-timeline이라 메인 스레드가 바빠도 부드러움
+   3) transform/opacity만 움직임 */
+.ohero{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;gap:6px;
+  height:calc(var(--sa-top,env(safe-area-inset-top)) + 168px);padding:var(--sa-top,env(safe-area-inset-top)) 8px 22px;transform-origin:50% 100%}
+.ohero b{font-size:34px;font-weight:800;letter-spacing:-1px;line-height:1.1;word-break:keep-all}
+.ohero span{font-size:15px;font-weight:500;color:var(--sub)}
+header{position:sticky;top:0;z-index:20;margin:0 -16px 12px;padding:calc(var(--sa-top,env(safe-area-inset-top)) + 8px) 18px 10px;align-items:center}
+header::before{content:'';position:absolute;inset:0;z-index:-1;background:color-mix(in srgb,var(--bg) 84%,transparent);
+  -webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);opacity:0}
+.brand #dateLbl{font-size:19px}
+.brand small{font-size:12.5px}
+@supports (animation-timeline:scroll()){
+  .ohero{animation:oh-out linear both;animation-timeline:scroll(root);animation-range:0 140px}
+  header .bt{animation:hb-in linear both;animation-timeline:scroll(root);animation-range:110px 165px}
+  header::before{animation:hbg-in linear both;animation-timeline:scroll(root);animation-range:120px 168px}
+  /* 카드가 아래에서 화면에 들어올 때 살짝 떠오름 (누를 때 쓰는 transform과 겹치지 않게 translate·scale 따로) */
+  .row,.pcard,.igroup,.bsec{animation:rise-in linear both;animation-timeline:view();animation-range:entry 0% entry 80%}
+}
+@supports not (animation-timeline:scroll()){ .ohero{display:none} }
+@keyframes oh-out{to{opacity:0;transform:translateY(28px) scale(.86)}}
+@keyframes hb-in{from{opacity:0;transform:translateY(10px)}}
+@keyframes hbg-in{from{opacity:0}to{opacity:1}}
+@keyframes rise-in{from{opacity:0;translate:0 22px;scale:.96}}
+:root.rm .ohero{display:none}
+:root.rm header .bt,:root.rm header::before{opacity:1}
+@media (prefers-reduced-motion:reduce){.row,.pcard,.igroup,.bsec{animation:none!important}}
+
+/* 누르는 느낌: 손가락이 닿는 순간 살짝 들어가고 어두워짐 */
+.row,.pcard,.day,.sitem,.skin .sw,.chip,.mascot{transition:transform 140ms var(--ease-out),filter 140ms var(--ease-out)}
+.row:active,.day:active,.sitem:active,.chip:active,.mascot:active{transform:scale(.97);filter:brightness(.95)}
+:root[data-theme="dark"] .row:active,:root[data-skin="night"] .row:active{filter:brightness(1.25)}
+
+/* 갤럭시 테마: One UI 색, 기기 기본 글꼴(갤럭시에선 삼성 글꼴), 평평한 카드, 큰 둥근 모서리 */
+:root[data-skin="galaxy"]{color-scheme:light;
+  --bg:#f2f2f4;--card:#ffffff;--ink:#0d0d0f;--sub:#6b6b72;--line:#e4e4e8;--accent:#2f6fe8;--accent-ink:#fff;--soft:#e4edff;
+  --warn:#b4540c;--warn-bg:#fff0e0;--memo:#e0570f;--memo-bg:#fff0e6;--shadow:none;
+  --ts:70%;--tl:93%;--cs:55%;--cl:33%;--ns:52%;--nl:42%;
+  --hero:#dfe9ff;--g1:#4d8dff;--g2:#2459d6;--pill:#2f6fe8;--pill-ink:#fff;--mascot:'📱';--r-lg:28px;--r-md:24px}
+@media (prefers-color-scheme:dark){:root[data-skin="galaxy"]:not([data-theme="light"]){color-scheme:dark;
+  --bg:#000000;--card:#17171a;--ink:#f4f4f6;--sub:#9a9aa3;--line:#26262b;--accent:#5b95ff;--accent-ink:#00143a;--soft:#13213f;
+  --warn:#f0a35e;--warn-bg:#2b2015;--memo:#ff9d5c;--memo-bg:#33210f;--ts:30%;--tl:20%;--cs:70%;--cl:80%;--ns:40%;--nl:32%;
+  --hero:#0f1f45;--g1:#3c78ec;--g2:#1c3f9c;--pill:#5b95ff;--pill-ink:#00143a}}
+:root[data-skin="galaxy"][data-theme="dark"]{color-scheme:dark;
+  --bg:#000000;--card:#17171a;--ink:#f4f4f6;--sub:#9a9aa3;--line:#26262b;--accent:#5b95ff;--accent-ink:#00143a;--soft:#13213f;
+  --warn:#f0a35e;--warn-bg:#2b2015;--memo:#ff9d5c;--memo-bg:#33210f;--ts:30%;--tl:20%;--cs:70%;--cl:80%;--ns:40%;--nl:32%;
+  --hero:#0f1f45;--g1:#3c78ec;--g2:#1c3f9c;--pill:#5b95ff;--pill-ink:#00143a}
+:root[data-skin="galaxy"] body,:root[data-skin="galaxy"] dialog h2{font-family:system-ui,-apple-system,'Roboto','Noto Sans KR',sans-serif}
+:root[data-skin="galaxy"] dialog h2{font-weight:700}
+:root[data-skin="galaxy"] .row{box-shadow:inset 4px 0 0 hsl(var(--h,150) calc(var(--s,1) * var(--ns)) var(--nl))}
+:root[data-skin="galaxy"] .pcard,:root[data-skin="galaxy"] .igroup,:root[data-skin="galaxy"] .day{border-radius:22px}
+:root[data-skin="galaxy"] .tabbar{border-radius:30px}
+:root[data-skin="galaxy"] dialog{border-radius:30px 30px 0 0}
 [hidden]{display:none!important}
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
 </style>
@@ -485,7 +540,8 @@ dialog{box-shadow:0 -10px 40px rgba(0,0,0,.18)}
 <body>
 <div class="sky" id="sky" aria-hidden="true"></div>
 <div class="ptr" id="ptr" aria-hidden="true"><i>↓</i><span>당겨서 새로고침</span></div>
-<header>
+<section class="ohero" id="ohero" aria-hidden="true"><b id="heroDate">시간표</b><span id="heroSub">세종 시간표</span></section>
+<header id="appbar">
   <div class="brand"><button class="mascot" id="mascot" aria-label="테마 바꾸기"></button><div class="bt"><small id="sub">세종 시간표</small><span id="dateLbl">시간표</span></div></div>
   <button class="chip" id="classBtn">학교 선택</button>
 </header>
@@ -544,7 +600,7 @@ dialog{box-shadow:0 -10px 40px rgba(0,0,0,.18)}
   <div class="pick" id="cPick"></div>
   <div class="sec">테마</div>
   <div class="skins" id="skins"></div>
-  <div class="sec" id="lightSec">밝기 <span>(기본 테마)</span></div>
+  <div class="sec" id="lightSec">밝기 <span>(One UI·새싹 테마)</span></div>
   <div class="seg" id="theme">
     <button data-v="auto">자동</button><button data-v="light">밝게</button><button data-v="dark">어둡게</button>
   </div>

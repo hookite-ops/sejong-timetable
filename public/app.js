@@ -71,9 +71,10 @@ function getToken(){
 }
 const TOKEN = getToken();
 let S = { school: store.get('school', null), cls: store.get('cls', null), theme: store.get('theme', 'auto'),
-  skin: store.get('skin', ''), fs: store.get('fs', 1), rm: store.get('rm', false), full: store.get('full', false) };
+  skin: store.get('skin', 'galaxy'), fs: store.get('fs', 1), rm: store.get('rm', false), full: store.get('full', false) };
 const SKINS = [
-  { id: '', name: '기본', e: '🌱', b: '#f3f5f2', c: '#ffffff', a: '#1f8a5b' },
+  { id: 'galaxy', name: 'One UI', e: '📱', b: '#f2f2f4', c: '#ffffff', a: '#2f6fe8' },
+  { id: '', name: '새싹', e: '🌱', b: '#f3f5f2', c: '#ffffff', a: '#1f8a5b' },
   { id: 'otter', name: '수달', e: '🦦', b: '#f6efe6', c: '#fffaf3', a: '#2f7aa0' },
   { id: 'jungle', name: '정글', e: '🐒', b: '#edf3e4', c: '#fbfdf6', a: '#2e7a32' },
   { id: 'ocean', name: '바다', e: '🐳', b: '#e9f3fb', c: '#ffffff', a: '#1864ab' },
@@ -105,8 +106,9 @@ const clsName = c => c ? ((c.short ? c.short + ' ' : '') + (c.gradeLabel || c.gr
 // 테마(스킨)·밝기·글자 크기·움직임 줄이기를 한 번에 적용. o를 주면 미리보기
 function applyTheme(o = S){
   const r = document.documentElement;
-  if (o.skin) { r.dataset.skin = o.skin; delete r.dataset.theme; }
-  else { delete r.dataset.skin; if (o.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = o.theme; }
+  const lightDark = !o.skin || o.skin === 'galaxy';   // 밝게/어둡게를 고를 수 있는 테마
+  if (o.skin) r.dataset.skin = o.skin; else delete r.dataset.skin;
+  if (lightDark && o.theme !== 'auto') r.dataset.theme = o.theme; else delete r.dataset.theme;
   r.classList.toggle('rm', !!o.rm);
   drawSky(o.skin);
   const z = +o.fs || 1; document.body.style.zoom = z === 1 ? '' : z;
@@ -132,6 +134,8 @@ function mixHex(a, b, t){
   const x = p(a), y = p(b);
   return '#' + x.map((v, i) => Math.round(v * t + y[i] * (1 - t)).toString(16).padStart(2, '0')).join('');
 }
+// 기기가 밝게↔어둡게 바뀌면 상태바 색도 다시 맞춤
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(draft || S)); } catch (e) {}
 // 테마가 바뀔 때: 누른 자리에서 새 테마가 동그랗게 퍼져 나감 (View Transitions, 안 되는 기기는 바로 바뀜)
 function withFade(fn, from){
   if (!document.startViewTransition || RM.matches) { fn(); return; }
@@ -241,7 +245,8 @@ function render(){
   const mon = targetMonday(), fri = new Date(mon); fri.setDate(mon.getDate()+4);
   $('#wkLbl').innerHTML = `${mon.getMonth()+1}월 ${mon.getDate()}일 – ${fri.getMonth()===mon.getMonth()?'':fri.getMonth()+1+'월 '}${fri.getDate()}일` + (weekOffset===0 ? '<em>이번 주</em>' : weekOffset===1?'<em>다음 주</em>':weekOffset===-1?'<em>지난 주</em>':'');
   const now = kstNow(), today = ymdOf(now);
-  $('#dateLbl').textContent = `${now.getMonth()+1}월 ${now.getDate()}일 ${WD[now.getDay()]}요일`;
+  $('#dateLbl').textContent = $('#heroDate').textContent = `${now.getMonth()+1}월 ${now.getDate()}일 ${WD[now.getDay()]}요일`;
+  $('#heroSub').textContent = $('#sub').textContent + (ready() ? ' · ' + clsName(S.cls) : '');
   const days = [...Array(5)].map((_,i)=>{ const d = new Date(mon); d.setDate(mon.getDate()+i); return ymdOf(d); });
   if (!selDay || !days.includes(selDay)) selDay = days.includes(today) ? today : days[0];
   $('#days').innerHTML = days.map(d => { const dt = toDate(d); const has = memos.list.length && cellDayHas(d); return `<button class="day${d===selDay?' sel':''}${d===today?' today':''}" data-d="${d}">${WD[dt.getDay()]}<b>${dt.getDate()}</b>${has?'<i class="dm" aria-label="메모 있음"></i>':''}</button>`; }).join('');
@@ -488,7 +493,7 @@ function drawSettings(){
   drawTimes();
   document.querySelectorAll('#theme button').forEach(b => b.classList.toggle('on', b.dataset.v === draft.theme));
   $('#skins').innerHTML = SKINS.map(k => `<button class="skin${k.id === draft.skin ? ' on' : ''}" data-skin="${k.id}" aria-pressed="${k.id === draft.skin}" style="--b:${k.b};--c:${k.c};--a:${k.a}"><span class="sw"><span>${k.e}</span></span>${k.name}</button>`).join('');
-  $('#lightSec').hidden = $('#theme').hidden = !!draft.skin;
+  $('#lightSec').hidden = $('#theme').hidden = !!draft.skin && draft.skin !== 'galaxy';
   document.querySelectorAll('#fsSeg button').forEach(b => { const on = +b.dataset.f === (+draft.fs || 1); b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
   $('#rmBtn').classList.toggle('on', !!draft.rm); $('#rmBtn').setAttribute('aria-pressed', !!draft.rm);
   $('#fullBtn').hidden = !(window.AndroidBars && window.AndroidBars.setFull);
