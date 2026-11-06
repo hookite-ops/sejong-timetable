@@ -129,12 +129,8 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;m
 .grid td.past{opacity:.5}
 .grid td .mb{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--memo);color:#fff;font-size:10.5px;font-style:normal;line-height:17px;font-weight:700}
 .grid .ghint{font-size:12.5px;color:var(--sub);text-align:center;margin-top:10px}
-body.week .grid{display:block}
-body.week .daysw,body.week .list{display:none}
 /* 우리 반 */
 .board{display:none}
-body.mboard .board{display:block}
-body.mboard .daysw,body.mboard .list,body.mboard .grid,body.mboard .weeknav,body.mboard .now,body.mboard .dstrip{display:none}
 
 .weeknav{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-size:14px;color:var(--sub)}
 .weeknav button{width:44px;height:40px;border-radius:12px;font-size:24px;line-height:1;color:var(--ink)}
@@ -575,6 +571,66 @@ header::before{content:'';position:absolute;inset:0;z-index:-1;background:color-
 dialog{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 -12px 40px rgba(0,0,0,.2)}
 :root.rm .now::after,:root.rm .row.cur .tag::after,:root.rm .hnow i{animation:none!important}
 @media (prefers-reduced-motion:reduce){.now::after,.row.cur .tag::after,.hnow.live i,.now .bar i::after{animation:none!important}}
+
+/* ================= 화면 구조: 오늘 / 시간표 / 우리 반 / 설정 ================= */
+.grid,.board,.setpage{display:none}
+body:not([data-mode="today"]) .now,body:not([data-mode="today"]) .todo,body:not([data-mode="today"]) #todayHead{display:none}
+body:not([data-mode="week"]) .weeknav,body:not([data-mode="week"]) .wvseg{display:none}
+body:not([data-mode="week"]) .daysw,body[data-wv="grid"] .daysw{display:none}
+body[data-mode="board"] .list,body[data-mode="set"] .list,body[data-mode="week"][data-wv="grid"] .list{display:none}
+body[data-mode="week"][data-wv="grid"] .grid{display:block}
+body[data-mode="board"] .board,body[data-mode="set"] .setpage{display:block}
+body[data-mode="board"] .foot,body[data-mode="set"] .foot{display:none}
+.bhead h3{display:none}
+.lh{margin:20px 6px 10px;font-size:15px;font-weight:700;color:var(--sub);display:flex;justify-content:space-between;align-items:baseline}
+.lh small{font-size:13px;font-weight:500}
+.wvseg{margin:0 0 10px}
+.grid th[data-d]{cursor:pointer}
+
+/* 오늘 챙길 것 */
+.todo{background:var(--card);border-radius:var(--r-lg,22px);box-shadow:var(--hl),var(--elev);padding:14px 16px 10px;margin:2px 0 4px}
+.todo:empty{display:none}
+.todo h4{margin:0 0 6px;font-size:14px;font-weight:700;color:var(--sub);display:flex;justify-content:space-between;align-items:center}
+.todo h4 button{font-size:13px;font-weight:600;color:var(--accent);padding:6px 0;min-height:32px}
+.todo h4 + .tn{margin-top:4px}
+.tn{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:16px;background:var(--soft);margin-bottom:10px}
+.tn p{margin:0;flex:1;font-size:14.5px;line-height:1.45;word-break:keep-all}
+.tn p b{display:block;font-size:12.5px;color:var(--accent);margin-bottom:2px}
+.tn button{flex:none;align-self:center;font-size:13px;font-weight:700;padding:8px 12px;border-radius:999px;background:var(--accent);color:var(--accent-ink);min-height:36px}
+.ti{display:flex;align-items:center;gap:12px;width:100%;padding:10px 2px;min-height:48px;text-align:left;font-size:15.5px}
+.ti + .ti{border-top:1px solid var(--line)}
+.ti .ck{flex:none;width:24px;height:24px;border-radius:8px;border:2px solid var(--line);display:grid;place-items:center;transition:background-color 160ms var(--ease-out),border-color 160ms var(--ease-out)}
+.ti.on .ck{background:var(--accent);border-color:var(--accent)}
+.ti.on .ck::after{content:'';width:10px;height:6px;border:2.5px solid var(--accent-ink);border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
+.ti .tx{flex:1;min-width:0}
+.ti.on .tx{color:var(--sub);text-decoration:line-through}
+.ti em{flex:none;font-style:normal;font-size:12px;font-weight:700;color:var(--sub);background:var(--bg);border-radius:999px;padding:3px 8px}
+.dd2{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:8px -16px 2px;padding:2px 16px 6px;scroll-snap-type:x proximity;overscroll-behavior-x:contain}
+.dd2::-webkit-scrollbar{display:none}
+.dd2 button{flex:none;scroll-snap-align:start;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 13px;border-radius:16px;background:var(--bg);text-align:left;max-width:180px}
+.dd2 b{font-size:15px;font-weight:800;color:var(--accent)}
+.dd2 b.hot{color:var(--memo)}
+.dd2 span{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:154px}
+.tempty{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14.5px;color:var(--sub);padding:2px 0 4px}
+.tempty button{flex:none;color:var(--accent);font-weight:700;font-size:14px;min-height:40px}
+
+/* 설정 페이지 (갤럭시 설정처럼 묶음 목록) */
+.sgt{margin:22px 18px 8px;font-size:13.5px;font-weight:700;color:var(--accent)}
+.sgt:first-child{margin-top:4px}
+.sgroup{background:var(--card);border-radius:26px;box-shadow:var(--hl),var(--elev);overflow:hidden}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:15px 20px;min-height:60px;text-align:left;color:var(--ink);text-decoration:none;border-radius:0}
+.srow > span{min-width:0}
+.srow b{display:block;font-size:16.5px;font-weight:600}
+.srow small{display:block;color:var(--sub);font-size:13.5px;margin-top:3px;line-height:1.35}
+.srow em{font-style:normal;color:var(--sub);font-size:20px;flex:none}
+.sgroup > * + *{border-top:1px solid var(--line)}
+button.srow:active,a.srow:active{background:color-mix(in srgb,var(--ink) 6%,transparent);transform:none}
+.spad{padding:14px 18px 16px}
+.slbl{display:block;font-size:16.5px;font-weight:600;margin:0 2px 12px}
+.swt{flex:none;width:46px;height:28px;border-radius:999px;background:var(--line);position:relative;transition:background-color 200ms var(--ease-out)}
+.swt::after{content:'';position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform 260ms var(--ease-out)}
+.srow.tg[aria-pressed="true"] .swt{background:var(--accent)}
+.srow.tg[aria-pressed="true"] .swt::after{transform:translateX(18px)}
 [hidden]{display:none!important}
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
 </style>
@@ -582,7 +638,7 @@ dialog{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 -12px 40px rgba(0,0,0,.2
 <body>
 <div class="sky" id="sky" aria-hidden="true"></div>
 <div class="ptr" id="ptr" aria-hidden="true"><i>↓</i><span>당겨서 새로고침</span></div>
-<section class="ohero" id="ohero"><b id="heroDate" aria-hidden="true">시간표</b><span id="heroSub">세종 시간표</span><button class="hnow" id="heroNow" hidden><i aria-hidden="true"></i><span id="heroNowT"></span></button></section>
+<section class="ohero" id="ohero"><b id="heroDate" aria-hidden="true">시간표</b><span id="heroSub">세종 시간표</span></section>
 <header id="appbar">
   <div class="brand"><button class="mascot" id="mascot" aria-label="테마 바꾸기"></button><div class="bt"><small id="sub">세종 시간표</small><span id="dateLbl">시간표</span></div></div>
   <button class="chip" id="classBtn">학교 선택</button>
@@ -599,8 +655,10 @@ dialog{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 -12px 40px rgba(0,0,0,.2
   <div class="nmemo" id="nowMemo"></div>
 </div>
 
-<div class="dstrip" id="dstrip"></div>
+<div class="todo" id="dstrip"></div>
+<h3 class="lh" id="todayHead">오늘 시간표</h3>
 
+<div class="seg wvseg" id="wvSeg" role="tablist" aria-label="시간표 보기"><button data-wv="grid" role="tab">한 주 표</button><button data-wv="day" role="tab">하루씩</button></div>
 <div class="weeknav">
   <button id="prevW" aria-label="이전 주">‹</button>
   <span class="wk" id="wkLbl">이번 주</span>
@@ -611,12 +669,36 @@ dialog{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 -12px 40px rgba(0,0,0,.2
 <div class="list" id="list"></div>
 <div class="grid" id="grid"></div>
 <section class="board" id="board" aria-label="우리 반"></section>
+<section class="setpage" id="setPage" aria-label="설정">
+  <div class="sgt">우리 반</div>
+  <div class="sgroup">
+    <button class="srow" id="sClass"><span><b>학교 · 반</b><small id="sClassV">고르지 않음</small></span><em>›</em></button>
+    <button class="srow" id="sTimes"><span><b>교시 시간</b><small id="sTimesV"></small></span><em>›</em></button>
+  </div>
+  <div class="sgt">화면</div>
+  <div class="sgroup">
+    <div class="spad"><b class="slbl">테마</b><div class="skins" id="skins"></div></div>
+    <div class="spad" id="lightRow"><b class="slbl">밝기</b><div class="seg" id="theme"><button data-v="auto">자동</button><button data-v="light">밝게</button><button data-v="dark">어둡게</button></div></div>
+    <div class="spad"><b class="slbl">글자 크기</b><div class="seg" id="fsSeg" role="radiogroup" aria-label="글자 크기"><button role="radio" data-f="1">보통</button><button role="radio" data-f="1.1">크게</button><button role="radio" data-f="1.2">아주 크게</button></div></div>
+    <button class="srow tg" id="rmBtn" aria-pressed="false"><span><b>움직임 줄이기</b><small>화면이 미끄러지는 효과를 꺼요</small></span><i class="swt" aria-hidden="true"></i></button>
+    <button class="srow tg" id="fullBtn" hidden aria-pressed="false"><span><b>전체화면</b><small>위아래 바 숨기기 · 끝에서 밀면 잠깐 보여요</small></span><i class="swt" aria-hidden="true"></i></button>
+  </div>
+  <div class="sgt">선생님</div>
+  <div class="sgroup">
+    <button class="srow" id="teachRow"><span><b id="teachLbl">선생님이세요? 코드 넣기</b><small>공지·과제 올리기, 확인한 학생 수 보기</small></span><em>›</em></button>
+  </div>
+  <div class="sgt">정보</div>
+  <div class="sgroup">
+    <a class="srow" href="privacy.html" target="_blank" rel="noopener"><span><b>개인정보처리방침 · 이용 규칙</b></span><em>›</em></a>
+    <div class="srow"><span><b>시간표 자동 업데이트</b><small id="sNeis">NEIS에서 받아 와요</small></span></div>
+  </div>
+</section>
 <div class="foot" id="foot"></div>
 
 <nav class="tabbar">
   <i class="pill" id="tpill" aria-hidden="true"></i>
-  <button id="tDay" class="on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="4"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15.2" r="1.6" fill="currentColor" stroke="none"/></svg><span>하루</span></button>
-  <button id="tWeek"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="4"/><path d="M3.5 10h17M3.5 15h17M9.2 4.5v15M14.8 4.5v15"/></svg><span>한 주</span></button>
+  <button id="tDay" class="on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="4"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15.2" r="1.6" fill="currentColor" stroke="none"/></svg><span>오늘</span></button>
+  <button id="tWeek"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="4"/><path d="M3.5 10h17M3.5 15h17M9.2 4.5v15M14.8 4.5v15"/></svg><span>시간표</span></button>
   <button id="tClass"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><circle cx="16.6" cy="8.4" r="2.5"/><path d="M15.8 13.5c2.5-.2 4.3 1.3 4.8 4"/></svg><span>우리 반</span></button>
   <button id="tSet"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5h9.5M18.5 7.5H20M4 16.5h3.5M12.5 16.5H20"/><circle cx="16" cy="7.5" r="2.4"/><circle cx="10" cy="16.5" r="2.4"/></svg><span>설정</span></button>
 </nav>
@@ -631,7 +713,7 @@ dialog{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 -12px 40px rgba(0,0,0,.2
 
 <!-- 설정 -->
 <dialog id="dlg" aria-labelledby="setTitle">
-  <h2 id="setTitle">우리 반 선택</h2>
+  <h2 id="setTitle">우리 반 고르기</h2>
   <p class="d" id="setDesc">한 번만 고르면 다음부터 바로 열려요.</p>
   <div class="sec">학교</div>
   <button class="schoolRow" id="schoolRow"><b id="setSchool">학교를 골라 주세요</b><span>바꾸기 ›</span></button>
@@ -640,24 +722,9 @@ dialog{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 -12px 40px rgba(0,0,0,.2
   <div class="pick g3" id="gPick"></div>
   <div class="sec">반 <span id="clsNote"></span></div>
   <div class="pick" id="cPick"></div>
-  <div class="sec">테마</div>
-  <div class="skins" id="skins"></div>
-  <div class="sec" id="lightSec">밝기 <span>(One UI·새싹 테마)</span></div>
-  <div class="seg" id="theme">
-    <button data-v="auto">자동</button><button data-v="light">밝게</button><button data-v="dark">어둡게</button>
-  </div>
-  <div class="sec">보기 편하게</div>
-  <div class="access">
-    <div class="seg" id="fsSeg" role="radiogroup" aria-label="글자 크기"><button role="radio" data-f="1">글자 보통</button><button role="radio" data-f="1.1">크게</button><button role="radio" data-f="1.2">아주 크게</button></div>
-    <button class="okt" id="rmBtn" aria-pressed="false"><i aria-hidden="true"></i>움직임 줄이기 (화면 이동 효과 끄기)</button>
-    <button class="okt" id="fullBtn" hidden aria-pressed="false"><i aria-hidden="true"></i>전체화면 (위아래 바 숨기기, 끝에서 밀면 잠깐 보여요)</button>
-  </div>
   <div class="sec" id="timeSec">교시 시간 <span id="timeNote"></span></div>
   <div class="times" id="times"></div>
   <button class="okt" id="timesOk" aria-pressed="false"><i aria-hidden="true"></i>이 시간이 우리 학교 일과표와 같아요</button>
-  <div class="sec">선생님 모드</div>
-  <button class="schoolRow" id="teachRow"><b id="teachLbl">선생님이세요? 코드 넣기</b><span>›</span></button>
-  <a class="plink" href="privacy.html" target="_blank" rel="noopener">개인정보처리방침 · 이용 규칙</a>
   <div class="btns"><button id="resetT">시간 기본값</button><button class="pri" id="save">저장</button></div>
 </dialog>
 

@@ -91,7 +91,8 @@ const timesFor = (code, level) => { const t = store.get('times.' + code, null); 
 const timesKnown = code => code === SAEUM || !!store.get('times.' + code, null) || !!store.get('timesOk.' + code, false);
 S.timesOk = S.school ? timesKnown(S.school.code) : false;
 S.times = S.school ? timesFor(S.school.code, (S.cls && S.cls.level) || S.school.level) : defTimes('', 'm');
-let weekOffset = 0, selDay = null, data = null, loading = false, mode = 'day';
+let weekOffset = 0, selDay = null, data = null, loading = false, mode = 'today';
+let wv = store.get('wv', 'grid');   // 시간표 탭: 'grid'(한 주 표) / 'day'(하루씩)
 let memos = { key: '', list: [], at: 0 };
 const memoStash = new Map();   // 주별로 마지막에 받은 메모 (잠시 못 받아도 이걸 보여 줌)
 const stashedMemos = () => (ready() && memoStash.get(wkKey(targetMonday()))) || { key: '', list: [], at: 0 };
@@ -248,22 +249,23 @@ function render(){
   const mon = targetMonday(), fri = new Date(mon); fri.setDate(mon.getDate()+4);
   $('#wkLbl').innerHTML = `${mon.getMonth()+1}월 ${mon.getDate()}일 – ${fri.getMonth()===mon.getMonth()?'':fri.getMonth()+1+'월 '}${fri.getDate()}일` + (weekOffset===0 ? '<em>이번 주</em>' : weekOffset===1?'<em>다음 주</em>':weekOffset===-1?'<em>지난 주</em>':'');
   const now = kstNow(), today = ymdOf(now);
-  $('#dateLbl').textContent = $('#heroDate').textContent = `${now.getMonth()+1}월 ${now.getDate()}일 ${WD[now.getDay()]}요일`;
-  $('#heroSub').textContent = $('#sub').textContent + (ready() ? ' · ' + clsName(S.cls) : '');
+  wkText = `${mon.getMonth()+1}월 ${mon.getDate()}일 – ${fri.getMonth()===mon.getMonth()?'':fri.getMonth()+1+'월 '}${fri.getDate()}일` + (weekOffset===0 ? ' · 이번 주' : weekOffset===1 ? ' · 다음 주' : weekOffset===-1 ? ' · 지난 주' : '');
   const days = [...Array(5)].map((_,i)=>{ const d = new Date(mon); d.setDate(mon.getDate()+i); return ymdOf(d); });
-  if (!selDay || !days.includes(selDay)) selDay = days.includes(today) ? today : days[0];
+  if (mode === 'today' || !selDay || !days.includes(selDay)) selDay = days.includes(today) ? today : days[0];
   $('#days').innerHTML = days.map(d => { const dt = toDate(d); const has = memos.list.length && cellDayHas(d); return `<button class="day${d===selDay?' sel':''}${d===today?' today':''}" data-d="${d}">${WD[dt.getDay()]}<b>${dt.getDate()}</b>${has?'<i class="dm" aria-label="메모 있음"></i>':''}</button>`; }).join('');
   placeDayPill();
   const byDay = Object.fromEntries((data?.days||[]).map(x => [x.ymd, x.periods]));
   renderList(byDay[selDay], selDay, selDay === today, now);
+  { const d = toDate(selDay), n = (byDay[selDay] || []).length;
+    $('#todayHead').innerHTML = selDay === today ? `오늘 시간표${n ? `<small>${n}교시까지</small>` : ''}` : `${WD[d.getDay()]}요일 시간표<small>${d.getMonth()+1}/${d.getDate()}</small>`; }
   renderGrid(days, byDay, today, now);
   // 요일·주·데이터가 바뀌었을 때만 들어오는 움직임 (30초마다 다시 그릴 땐 가만히)
   const lk = (ready() ? wkKey(mon) : '') + '|' + selDay + '|' + (data ? (data.days || []).length : 'x') + '|' + (S.cls ? S.cls.id : '');
   if (lk !== lastListKey) {
     const first = !lastListKey; lastListKey = lk;
-    if (mode === 'day') enter($('#list').children, { x: navDir * 22, y: navDir ? 0 : 10, stagger: first ? 40 : 24, dur: first ? 340 : 260 });
+    if (mode === 'today' || (mode === 'week' && wv === 'day')) enter($('#list').children, { x: navDir * 22, y: navDir ? 0 : 10, stagger: first ? 40 : 24, dur: first ? 340 : 260 });
     const wk = (ready() ? wkKey(mon) : '');
-    if (mode === 'week' && wk !== lastGridKey) enter($('#grid').querySelectorAll('tr'), { x: navDir * 22, y: navDir ? 0 : 8, stagger: 22 });
+    if (mode === 'week' && wv === 'grid' && wk !== lastGridKey) enter($('#grid').querySelectorAll('tr'), { x: navDir * 22, y: navDir ? 0 : 8, stagger: 22 });
     lastGridKey = wk;
   }
   navDir = 0;
@@ -272,8 +274,18 @@ function render(){
   if (weekOffset !== 0 && ready()) { const cw = wkCacheGet(wkKey(mondayOf(now))); todayP = cw ? (cw.days.find(x => x.ymd === today) || {}).periods : undefined; }
   renderNow(todayP, now, today);
   renderFoot();
+  heroText();
 }
-let lastListKey = '', lastGridKey = '';
+let lastListKey = '', lastGridKey = '', wkText = '';
+// 탭마다 큰 제목 (One UI처럼): 오늘=날짜, 시간표=주, 우리 반, 설정
+function heroText(){
+  const now = kstNow(), school = S.school ? S.school.name : '세종 시간표';
+  const [t, sub] = mode === 'week' ? ['시간표', wkText]
+    : mode === 'board' ? ['우리 반', ready() ? clsName(S.cls) + ' 게시판' : school]
+    : mode === 'set' ? ['설정', '세종 시간표']
+    : [`${now.getMonth()+1}월 ${now.getDate()}일 ${WD[now.getDay()]}요일`, school + (ready() ? ' · ' + clsName(S.cls) : '')];
+  $('#heroDate').textContent = $('#dateLbl').textContent = t; $('#heroSub').textContent = sub;
+}
 // 고른 요일 뒤에 깔린 검은 알약이 미끄러지듯 옮겨 감 (transform만)
 function placeDayPill(){
   const pill = $('#dpill'), b = $('#days .day.sel');
@@ -319,7 +331,7 @@ function renderGrid(days, byDay, today, now){
   if (!ready()) { $('#grid').innerHTML = ''; return; }
   const maxP = Math.max(5, ...days.map(d => Math.max(0, ...(byDay[d]||[]).map(x=>x.p))));
   const cur = curPeriod(byDay[today], now), m = now.getHours()*60 + now.getMinutes();
-  let h = '<table><tr><th></th>' + days.map(d => `<th class="${d===today?'tod':''}">${WD[toDate(d).getDay()]}<b>${toDate(d).getDate()}</b></th>`).join('') + '</tr>';
+  let h = '<table><tr><th></th>' + days.map(d => `<th class="${d===today?'tod':''}" data-d="${d}" role="button" aria-label="${WD[toDate(d).getDay()]}요일 하루씩 보기">${WD[toDate(d).getDay()]}<b>${toDate(d).getDate()}</b></th>`).join('') + '</tr>';
   for (let p = 1; p <= maxP; p++) {
     h += `<tr><td class="n">${p}</td>` + days.map(d => {
       const x = (byDay[d]||[]).find(y=>y.p===p);
@@ -349,10 +361,6 @@ function renderNow(periods, now, today){
     box.classList.toggle('idle', idle); box.classList.toggle('cta', !ready()); box.setAttribute('style', hs || '');
     nowTarget = target || null;
     const ms = target ? cellMemos(target.ymd, target.p) : [];
-    const lb = $('#nowLeft b'), ls = $('#nowLeft span');
-    $('#heroNow').hidden = !ready();
-    $('#heroNow').classList.toggle('live', !idle && !!lb);
-    $('#heroNowT').textContent = (lbl + ' · ' + subj).replace(/ ›$/, '') + (lb ? ` · ${lb.textContent} ${ls ? ls.textContent : ''}` : '');
     $('#nowMemo').innerHTML = ms.length ? `<em>메모 ${ms.length}</em><span>${esc(ms[ms.length-1].text.split('\n')[0])}</span>` : '';
   };
   const wd = now.getDay();
@@ -454,7 +462,6 @@ function openSettings(newSchool){
   $('#dlg').showModal();
   $('#dlg').scrollTop = 0;
   if (newSchool) setDraftSchool(newSchool); else { drawSettings(); if (draft.school) fillClasses(); }
-  enter($('#skins').children, { y: 10, stagger: 30, dur: 320, scale: .85, max: 8 });
 }
 function setDraftSchool(sc){
   const same = draft.school && draft.school.code === sc.code;
@@ -473,7 +480,7 @@ async function fillClasses(){
 }
 function drawSettings(){
   const sc = draft.school, info = sc && classInfo[sc.code];
-  $('#setTitle').textContent = S.cls ? '설정' : '우리 반 선택';
+  $('#setTitle').textContent = S.cls ? '우리 반 바꾸기' : '우리 반 고르기';
   $('#setDesc').hidden = !!S.cls;
   $('#setSchool').textContent = sc ? sc.name : '학교를 골라 주세요';
   const course = info && !info.err ? info.courses[Math.min(crseIdx, info.courses.length-1)] : null;
@@ -498,13 +505,6 @@ function drawSettings(){
   $('#timesOk').classList.toggle('on', !!draft.timesOk);
   $('#timesOk').setAttribute('aria-pressed', draft.timesOk ? 'true' : 'false');
   drawTimes();
-  document.querySelectorAll('#theme button').forEach(b => b.classList.toggle('on', b.dataset.v === draft.theme));
-  $('#skins').innerHTML = SKINS.map(k => `<button class="skin${k.id === draft.skin ? ' on' : ''}" data-skin="${k.id}" aria-pressed="${k.id === draft.skin}" style="--b:${k.b};--c:${k.c};--a:${k.a}"><span class="sw"><span>${k.e}</span></span>${k.name}</button>`).join('');
-  $('#lightSec').hidden = $('#theme').hidden = !!draft.skin && draft.skin !== 'galaxy';
-  document.querySelectorAll('#fsSeg button').forEach(b => { const on = +b.dataset.f === (+draft.fs || 1); b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
-  $('#rmBtn').classList.toggle('on', !!draft.rm); $('#rmBtn').setAttribute('aria-pressed', !!draft.rm);
-  $('#fullBtn').hidden = !(window.AndroidBars && window.AndroidBars.setFull);
-  $('#fullBtn').classList.toggle('on', !!draft.full); $('#fullBtn').setAttribute('aria-pressed', !!draft.full);
   $('#save').disabled = !(draft.school && draft.cls);
   $('#save').textContent = draft.cls ? '저장' : (draft.school ? '반을 골라 주세요' : '학교를 골라 주세요');
 }
@@ -528,31 +528,52 @@ $('#cPick').onclick = e => {
   if (prevLevel !== course.level && !store.get('times.' + draft.school.code, null)) draft.times = defTimes(draft.school.code, course.level);
   drawSettings();
 };
-$('#theme').onclick = e => { const b = e.target.closest('[data-v]'); if (!b || b.dataset.v === draft.theme) return; draft.theme = b.dataset.v; withFade(() => { applyTheme(draft); drawSettings(); }, b); };
+// ---------- 설정 페이지: 누르는 즉시 적용·저장 (저장 버튼 없음) ----------
+function setLook(k, v, from){
+  if (S[k] === v) return;
+  S[k] = v; store.set(k, v); haptic(k === 'skin' ? 10 : 6);
+  if (k === 'skin' || k === 'theme') withFade(() => { applyTheme(S); drawLook(); }, from); else { applyTheme(S); drawLook(); }
+}
+function drawLook(){
+  $('#skins').innerHTML = SKINS.map(k => `<button class="skin${k.id === S.skin ? ' on' : ''}" data-skin="${k.id}" aria-pressed="${k.id === S.skin}" style="--b:${k.b};--c:${k.c};--a:${k.a}"><span class="sw"><span>${k.e}</span></span>${k.name}</button>`).join('');
+  $('#lightRow').hidden = !!S.skin && S.skin !== 'galaxy';
+  document.querySelectorAll('#theme button').forEach(b => b.classList.toggle('on', b.dataset.v === S.theme));
+  document.querySelectorAll('#fsSeg button').forEach(b => { const on = +b.dataset.f === (+S.fs || 1); b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  $('#rmBtn').setAttribute('aria-pressed', !!S.rm);
+  $('#fullBtn').hidden = !(window.AndroidBars && window.AndroidBars.setFull);
+  $('#fullBtn').setAttribute('aria-pressed', !!S.full);
+  $('#sClassV').textContent = ready() ? `${S.school.name} · ${clsName(S.cls)}` : S.school ? `${S.school.name} · 반을 골라 주세요` : '학교를 골라 주세요';
+  $('#sTimesV').textContent = !S.school ? '학교를 고르면 맞출 수 있어요' : S.school.code === SAEUM ? '새움중 실제 일과표' : S.timesOk ? '우리 학교 시간으로 맞춰 둠' : '추정 시간이에요 · 눌러서 맞추기';
+  const t = store.get('lastOk', 0);
+  $('#sNeis').textContent = t ? `NEIS에서 받아 와요 · 마지막 확인 ${new Date(t).getHours()}:${pad(new Date(t).getMinutes())}` : 'NEIS에서 받아 와요';
+  drawTeachRow();
+}
+$('#theme').onclick = e => { const b = e.target.closest('[data-v]'); if (b) setLook('theme', b.dataset.v, b); };
 $('#skins').onclick = e => {
-  const b = e.target.closest('[data-skin]'); if (!b || b.dataset.skin === draft.skin) return;
-  draft.skin = b.dataset.skin; haptic(10);
-  withFade(() => { applyTheme(draft); drawSettings(); }, b);
-  const sw = $(`#skins [data-skin="${draft.skin}"] .sw`);
+  const b = e.target.closest('[data-skin]'); if (!b || b.dataset.skin === S.skin) return;
+  setLook('skin', b.dataset.skin, b);
+  const sw = $(`#skins [data-skin="${S.skin}"] .sw`);
   if (sw && !RM.matches) sw.animate([{ transform: 'scale(.85) rotate(-10deg)' }, { transform: 'scale(1.12) rotate(6deg)', offset: .5 }, { transform: 'none' }], { duration: 420, easing: EASE });
 };
-$('#fsSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; draft.fs = +b.dataset.f; applyTheme(draft); drawSettings(); };
-$('#rmBtn').onclick = () => { draft.rm = !draft.rm; applyTheme(draft); drawSettings(); };
-$('#fullBtn').onclick = () => { draft.full = !draft.full; applyTheme(draft); drawSettings(); };
+$('#fsSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (b) setLook('fs', +b.dataset.f); };
+$('#rmBtn').onclick = () => setLook('rm', !S.rm);
+$('#fullBtn').onclick = () => setLook('full', !S.full);
+$('#sClass').onclick = () => { haptic(); S.school ? openSettings() : openSchool(); };
+$('#sTimes').onclick = () => { haptic(); S.school ? openTimes() : openSchool(); };
 $('#times').oninput = e => { const i = +e.target.dataset.i, k = +e.target.dataset.k; if (e.target.value) { draft.times[i][k] = e.target.value; if (!draft.timesOk) { draft.timesOk = true; drawSettings(); } } };
 $('#timesOk').onclick = () => { draft.timesOk = !draft.timesOk; drawSettings(); };
 $('#resetT').onclick = () => { draft.times = defTimes(draft.school ? draft.school.code : '', (draft.cls && draft.cls.level) || (draft.school && draft.school.level) || 'm'); drawTimes(); toast('기본 시간으로 바꿨어요 (저장을 눌러야 적용)'); };
 $('#save').onclick = () => {
   if (!draft.school || !draft.cls) return;
   const changed = !S.school || draft.school.code !== S.school.code || !S.cls || draft.cls.id !== S.cls.id || draft.cls.grade !== S.cls.grade;
-  S = { school: draft.school, cls: draft.cls, theme: draft.theme, skin: draft.skin, fs: draft.fs, rm: draft.rm, full: draft.full, times: draft.times, timesOk: draft.school.code === SAEUM || !!draft.timesOk };
+  S = { ...S, school: draft.school, cls: draft.cls, times: draft.times, timesOk: draft.school.code === SAEUM || !!draft.timesOk };
   if (S.timesOk && S.school.code !== SAEUM) store.set('timesOk.' + S.school.code, true); else store.del('timesOk.' + S.school.code);
-  store.set('school', S.school); store.set('cls', S.cls); store.set('theme', S.theme); store.set('skin', S.skin); store.set('fs', S.fs); store.set('rm', S.rm); store.set('full', S.full);
+  store.set('school', S.school); store.set('cls', S.cls);
   const isDef = JSON.stringify(S.times) === JSON.stringify(defTimes(S.school.code, S.cls.level));
   if (isDef || !S.timesOk) store.del('times.' + S.school.code); else store.set('times.' + S.school.code, S.times);
   applyTheme(); $('#dlg').close();
   if (changed) { data = null; weekOffset = 0; selDay = null; memos = { key: '', list: [], at: 0 }; memoStash.clear(); memoWait = 0; boardData = null; boardWait = 0; }
-  render(); load(changed); loadMemos(); loadBoard();
+  render(); load(changed); loadMemos(); loadBoard(); drawLook();
 };
 $('#dlg').addEventListener('cancel', e => { if (!S.cls) e.preventDefault(); });
 $('#dlg').addEventListener('close', () => { draft = null; applyTheme(S); });   // 저장 안 하고 닫으면 미리보기 되돌리기
@@ -560,8 +581,8 @@ $('#dlg').addEventListener('close', () => { draft = null; applyTheme(S); });   /
 // 마스코트: 누르면 꼬물거리고 테마 고르기로
 $('#mascot').onclick = () => {
   if (!RM.matches) $('#mascot').animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-14deg) scale(1.08)' }, { transform: 'rotate(10deg) scale(1.08)' }, { transform: 'rotate(-6deg)' }, { transform: 'none' }], { duration: 520, easing: EASE });
-  if (!S.school) return;
-  setTimeout(() => { openSettings(); requestAnimationFrame(() => { const el = $('#skins'); if (el) el.previousElementSibling.scrollIntoView({ block: 'start', behavior: RM.matches ? 'auto' : 'smooth' }); }); }, RM.matches ? 0 : 260);
+  haptic(); setMode('set');
+  requestAnimationFrame(() => { const el = $('#skins').closest('.sgroup'); scrollTo({ top: el.getBoundingClientRect().top + scrollY - 120, behavior: RM.matches ? 'auto' : 'smooth' }); });
 };
 
 // 시트를 아래로 끌어서 닫기: 빠르게 튕기면 짧게 끌어도 닫힘, 위로 끌면 점점 덜 움직임(고무줄)
@@ -715,23 +736,44 @@ const whenLbl = ymd => { const n = dayDiff(ymd); return n === 0 ? '오늘' : n =
 const checks = () => new Set(store.get('chk', []));
 function upcoming(){ return visPosts().filter(p => p.kind === 'event' && dayDiff(p.ymd) >= 0).sort((a,b) => a.ymd.localeCompare(b.ymd)); }
 
-// 하루·한 주 화면 위쪽: 가까운 일정 D-day와 내일 준비물
+// 오늘 탭: 선생님 알림, 오늘·내일 준비물(바로 체크), 다가오는 D-day
 function renderDstrip(){
   const el = $('#dstrip');
-  if (!ready()) { el.innerHTML = ''; return; }
-  const ev = upcoming().slice(0, 4), items = visPosts().filter(p => p.kind === 'item' && dayDiff(p.ymd) >= 0 && dayDiff(p.ymd) <= 1);
-  const ck = checks(), left = items.filter(p => !ck.has(p.id));
+  if (!ready()) { el.innerHTML = ''; el.dataset.sig = ''; return; }
+  const posts = visPosts();
+  if (!boardData) { el.innerHTML = ''; return; }
+  const ck = checks();
+  const tn = posts.filter(p => p.teacher && p.kind === 'notice' && !p.myAck && !isTeacher());
+  const items = posts.filter(p => p.kind === 'item' && dayDiff(p.ymd) >= 0 && dayDiff(p.ymd) <= 1).sort((a,b) => a.ymd.localeCompare(b.ymd) || a.at - b.at);
+  const ev = upcoming().filter(p => dayDiff(p.ymd) <= 30).slice(0, 8);
   let h = '';
-  const tn = visPosts().filter(p => p.teacher && p.kind === 'notice' && !p.myAck && !isTeacher());
-  if (tn.length) h += `<button class="dchip tnote" data-go><b>📢 선생님</b><span>${esc(tn[0].text.split('\n')[0])}</span></button>`;
-  if (left.length) h += `<button class="dchip item" data-go><b>준비물 ${left.length}</b><span>${esc(left.map(p => p.text).join(', '))}</span></button>`;
-  h += ev.map(p => `<button class="dchip t-${esc(p.tag)}" data-go><b>${dLabel(dayDiff(p.ymd))}</b><span>${esc(p.text)}</span></button>`).join('');
-  const sig = h;
-  if (sig === el.dataset.sig) return;
-  const firstFill = !el.dataset.sig; el.dataset.sig = sig; el.innerHTML = h;
-  if (firstFill && mode !== 'board') enter(el.children, { x: 18, y: 0, stagger: 45 });
+  if (tn.length) h += `<div class="tn"><p><b>📢 ${esc(tn[0].nick || '선생님')}</b>${esc(tn[0].text)}</p><button data-ack="${esc(tn[0].id)}">확인했어요</button></div>`;
+  h += `<h4><span>챙길 것</span><button data-go>우리 반 ›</button></h4>`;
+  h += items.map(p => `<button class="ti${ck.has(p.id) ? ' on' : ''}" data-chk="${esc(p.id)}" role="checkbox" aria-checked="${ck.has(p.id)}"><span class="ck"></span><span class="tx">${esc(p.text)}</span><em>${whenLbl(p.ymd)}</em></button>`).join('');
+  if (ev.length) h += `<div class="dd2">${ev.map(p => { const n = dayDiff(p.ymd); return `<button data-go aria-label="${dLabel(n)} ${esc(p.text)}"><b class="${n <= 1 ? 'hot' : ''}">${dLabel(n)}</b><span>${esc(p.text)}</span></button>`; }).join('')}</div>`;
+  if (!items.length && !ev.length) h += `<div class="tempty"><span>오늘·내일 준비물이나 다가오는 일정이 없어요</span><button data-new="item">+ 올리기</button></div>`;
+  if (h === el.dataset.sig) return;
+  const firstFill = !el.dataset.sig; el.dataset.sig = h; el.innerHTML = h;
+  if (firstFill && mode === 'today') pop(el);
 }
-$('#dstrip').onclick = e => { if (e.target.closest('[data-go]')) setMode('board'); };
+$('#dstrip').onclick = e => {
+  const ab = e.target.closest('[data-ack]'); if (ab) { haptic(); return ack(ab); }
+  const ck = e.target.closest('[data-chk]'); if (ck) return toggleTodo(ck);
+  const nw = e.target.closest('[data-new]'); if (nw) return openPost(nw.dataset.new);
+  if (e.target.closest('[data-go]')) { haptic(); setMode('board'); }
+};
+function toggleTodo(row){
+  const id = row.dataset.chk, set = checks(), on = !set.has(id);
+  on ? set.add(id) : set.delete(id);
+  const live = new Set(boardPosts().map(p => p.id));
+  store.set('chk', [...set].filter(x => live.has(x)).slice(-300));
+  haptic(on ? 10 : 6);
+  row.classList.toggle('on', on); row.setAttribute('aria-checked', on);
+  if (on) bump(row.querySelector('.ck'));
+  const p = boardPosts().find(x => x.id === id), same = p ? visPosts().filter(x => x.kind === 'item' && x.ymd === p.ymd) : [];
+  if (on && same.length && same.every(x => set.has(x.id))) { const r = row.querySelector('.ck').getBoundingClientRect(); confetti(r.left + r.width / 2, r.top + r.height / 2); toast(`${whenLbl(p.ymd)} 준비물 다 챙겼어요!`); }
+  setTimeout(() => { $('#dstrip').dataset.sig = ''; renderDstrip(); }, 250);
+}
 
 function postMeta(p){
   const T = isTeacher();
@@ -995,7 +1037,6 @@ $('#pSend').onclick = async () => {
 
 // ---------- 조작 ----------
 $('#classBtn').onclick = () => S.school ? openSettings() : openSchool();
-$('#tSet').onclick = () => S.school ? openSettings() : openSchool();
 $('#now').onclick = e => {
   if (!S.school) return openSchool();
   if (e && e.target.closest && e.target.closest('[data-fix]')) return openTimes();
@@ -1012,30 +1053,36 @@ $('#list').onclick = e => {
   const a = e.target.closest('[data-act]'); if (a) return a.dataset.act === 'school' ? openSchool() : openSettings();
   const r = e.target.closest('.row'); if (r) openMemo(r.dataset.d, +r.dataset.p);
 };
-$('#grid').onclick = e => { const td = e.target.closest('td[data-p]'); if (td) openMemo(td.dataset.d, +td.dataset.p); };
-const MODES = ['day', 'week', 'board'];
+$('#grid').onclick = e => { const th = e.target.closest('th[data-d]'); if (th) { haptic(6); selDay = th.dataset.d; return setWv('day'); } const td = e.target.closest('td[data-p]'); if (td) openMemo(td.dataset.d, +td.dataset.p); };
+const MODES = ['today', 'week', 'board', 'set'];
 function placeTabPill(){ $('#tpill').style.transform = `translateX(${MODES.indexOf(mode) * 100}%)`; }
 function setMode(m){
-  if (m === mode) return;
+  if (m === mode) { if (scrollY > 0) scrollTo({ top: 0, behavior: RM.matches ? 'auto' : 'smooth' }); return; }   // 지금 탭을 또 누르면 맨 위로
   const dir = Math.sign(MODES.indexOf(m) - MODES.indexOf(mode));
-  mode = m;
-  document.body.classList.toggle('week', m === 'week'); document.body.classList.toggle('mboard', m === 'board');
-  $('#tDay').classList.toggle('on', m === 'day'); $('#tWeek').classList.toggle('on', m === 'week'); $('#tClass').classList.toggle('on', m === 'board');
+  mode = m; document.body.dataset.mode = m;
+  [['#tDay', 'today'], ['#tWeek', 'week'], ['#tClass', 'board'], ['#tSet', 'set']].forEach(([id, k]) => { $(id).classList.toggle('on', k === m); $(id).setAttribute('aria-current', k === m ? 'page' : 'false'); });
   placeTabPill();
   const ic = document.querySelector('.tabbar button.on svg'); if (ic && !RM.matches) ic.animate([{ transform: 'scale(.8) translateY(2px)' }, { transform: 'scale(1.12) translateY(-2px)', offset: .55 }, { transform: 'none' }], { duration: 380, easing: EASE });
   window.scrollTo({ top: 0 });
-  if (m === 'board') { renderBoard(true, dir); loadBoard(); }
-  else {
-    if (m === 'day') { placeDayPill(); enter([$('#now'), $('#dstrip'), $('.weeknav'), $('.daysw'), ...$('#list').children], { x: dir * 26, y: 0, stagger: 26, dur: 300 }); }
-    else enter([$('#now'), $('#dstrip'), $('.weeknav'), ...$('#grid').querySelectorAll('tr')], { x: dir * 26, y: 0, stagger: 22, dur: 300 });
-  }
+  if (m === 'today' && weekOffset !== 0) { weekOffset = 0; data = null; selDay = null; memos = stashedMemos(); render(); load(); loadMemos(); }
+  else render();
+  const o = { x: dir * 26, y: 0, stagger: 26, dur: 300 };
+  if (m === 'today') enter([$('#now'), $('#dstrip'), $('#todayHead'), ...$('#list').children], o);
+  else if (m === 'week') { if (wv === 'day') placeDayPill(); enter([$('#wvSeg'), $('.weeknav'), ...(wv === 'day' ? [$('.daysw'), ...$('#list').children] : $('#grid').querySelectorAll('tr'))], o); }
+  else if (m === 'board') { renderBoard(true, dir); loadBoard(); }
+  else { drawLook(); enter($('#setPage').children, { ...o, stagger: 22 }); }
 }
-// 큰 제목 아래 '지금' 줄: 누르면 지금 교시(없으면 시간표)로 부드럽게
-$('#heroNow').onclick = () => { haptic(); if (mode !== 'day') setMode('day');
-  requestAnimationFrame(() => { const r = $('#list .row.cur') || $('#now'); const y = r.getBoundingClientRect().top + scrollY - innerHeight * .35;
-    scrollTo({ top: Math.max(0, y), behavior: RM.matches ? 'auto' : 'smooth' }); if (r.classList.contains('row')) setTimeout(() => !RM.matches && r.animate([{ scale: '1' }, { scale: '1.03' }, { scale: '1' }], { duration: 420, easing: EASE }), 420); }); };
-$('#tDay').onclick = () => { haptic(); setMode('day'); };
+// 시간표 탭 안에서 '한 주 표' ↔ '하루씩'
+function setWv(v){
+  wv = v; store.set('wv', v); document.body.dataset.wv = v;
+  document.querySelectorAll('#wvSeg button').forEach(b => { const on = b.dataset.wv === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  lastListKey = ''; lastGridKey = ''; render();
+  if (v === 'day') placeDayPill();
+}
+$('#wvSeg').onclick = e => { const b = e.target.closest('[data-wv]'); if (b && b.dataset.wv !== wv) { haptic(6); setWv(b.dataset.wv); } };
+$('#tDay').onclick = () => { haptic(); setMode('today'); };
 $('#tWeek').onclick = () => { haptic(); setMode('week'); };
+$('#tSet').onclick = () => { haptic(); setMode('set'); };
 $('#tClass').onclick = () => { haptic(); if (!ready()) return S.school ? openSettings() : openSchool(); setMode('board'); };
 $('#days').onclick = e => { const b = e.target.closest('.day'); if (!b || b.dataset.d === selDay) return; haptic(6); navDir = b.dataset.d > selDay ? 1 : -1; selDay = b.dataset.d; render(); };
 const shiftWeek = n => { navDir = Math.sign(n); weekOffset += n; data = null; selDay = null; memos = stashedMemos(); render(); load(); loadMemos(); };
@@ -1062,10 +1109,9 @@ document.addEventListener('touchend', e => {
   pulling = false;
   if (!ready()) return;
   if (Math.abs(dx) > 70 && Math.abs(dy) < 50) {
-    if (mode === 'board') return;
-    if (mode === 'week') return shiftWeek(dx < 0 ? 1 : -1);
+    if (mode !== 'week') return;
+    if (wv === 'grid') return shiftWeek(dx < 0 ? 1 : -1);
     const ds = [...document.querySelectorAll('.day')].map(b=>b.dataset.d), i = ds.indexOf(selDay);
-    if (mode === 'board') return;
     if (dx < 0) { if (i < 4) { navDir = 1; selDay = ds[i+1]; render(); } else shiftWeek(1); }
     else { if (i > 0) { navDir = -1; selDay = ds[i-1]; render(); } else shiftWeek(-1); }
   }
@@ -1085,12 +1131,14 @@ window.__back = () => {
   if ($('#postDlg').open) { $('#postDlg').close(); return true; }
   for (const id of ['#memoDlg', '#schoolDlg']) if ($(id).open) { if (id !== '#schoolDlg' || S.school || $('#dlg').open) $(id).close(); return true; }
   if ($('#dlg').open) { if (S.cls) $('#dlg').close(); return true; }
-  if (mode !== 'day') { setMode('day'); return true; }
+  if (mode !== 'today') { setMode('today'); return true; }
   if (weekOffset !== 0) { shiftWeek(-weekOffset); return true; }
   return false;
 };
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
-applyTheme(); placeTabPill(); render();
+document.body.dataset.mode = mode; document.body.dataset.wv = wv;
+document.querySelectorAll('#wvSeg button').forEach(b => b.classList.toggle('on', b.dataset.wv === wv));
+applyTheme(); placeTabPill(); render(); drawLook();
 if (TEACHER) api('/api/teacher/me').then(j => { TEACHER = { ...TEACHER, name: j.name, schoolName: j.schoolName }; store.set('teacher', TEACHER); }).catch(() => {});
 if (!S.school) openSchool();
 else if (!S.cls) openSettings();
