@@ -70,12 +70,13 @@ function getToken(){
   return t;
 }
 const TOKEN = getToken();
-(function(){ try { if (store.get('skinV', 0) < 2) { if (store.get('skin', 'galaxy') === '') store.set('skin', 'galaxy'); store.set('skinV', 2); } } catch (e) {} })();
+(function(){ try { const v = store.get('skinV', 0); if (v < 3) { const k = store.get('skin', 'simple'); if (k === '' || k === 'galaxy') store.set('skin', 'simple'); store.set('skinV', 3); } } catch (e) {} })();
 // 가벼운 진동 (갤럭시처럼 톡): 지원하는 기기에서만
 const haptic = (ms = 8) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 let S = { school: store.get('school', null), cls: store.get('cls', null), theme: store.get('theme', 'auto'),
-  skin: store.get('skin', 'galaxy'), fs: store.get('fs', 1), rm: store.get('rm', false), full: store.get('full', false) };
+  skin: store.get('skin', 'simple'), fs: store.get('fs', 1), rm: store.get('rm', false), full: store.get('full', false) };
 const SKINS = [
+  { id: 'simple', name: '심플', e: '💙', b: '#f2f4f6', c: '#ffffff', a: '#3182f6' },
   { id: 'galaxy', name: '갤럭시', e: '📱', b: '#f2f2f4', c: '#ffffff', a: '#2f6fe8' },
   { id: '', name: '새싹', e: '🌱', b: '#f3f5f2', c: '#ffffff', a: '#1f8a5b' },
   { id: 'otter', name: '수달', e: '🦦', b: '#f6efe6', c: '#fffaf3', a: '#2f7aa0' },
@@ -111,7 +112,7 @@ const clsName = c => c ? ((c.short ? c.short + ' ' : '') + (c.gradeLabel || c.gr
 // 테마(스킨)·밝기·글자 크기·움직임 줄이기를 한 번에 적용. o를 주면 미리보기
 function applyTheme(o = S){
   const r = document.documentElement;
-  const lightDark = !o.skin || o.skin === 'galaxy';   // 밝게/어둡게를 고를 수 있는 테마
+  const lightDark = !o.skin || o.skin === 'galaxy' || o.skin === 'simple';   // 밝게/어둡게를 고를 수 있는 테마
   if (o.skin) r.dataset.skin = o.skin; else delete r.dataset.skin;
   if (lightDark && o.theme !== 'auto') r.dataset.theme = o.theme; else delete r.dataset.theme;
   r.classList.toggle('rm', !!o.rm);
@@ -880,7 +881,7 @@ function setLook(k, v, from){
 }
 function drawLook(){
   $('#skins').innerHTML = SKINS.map(k => `<button class="skin${k.id === S.skin ? ' on' : ''}" data-skin="${k.id}" aria-pressed="${k.id === S.skin}" style="--b:${k.b};--c:${k.c};--a:${k.a}"><span class="sw"><span>${k.e}</span></span>${k.name}</button>`).join('');
-  $('#lightRow').hidden = !!S.skin && S.skin !== 'galaxy';
+  $('#lightRow').hidden = !!S.skin && S.skin !== 'galaxy' && S.skin !== 'simple';
   document.querySelectorAll('#theme button').forEach(b => b.classList.toggle('on', b.dataset.v === S.theme));
   document.querySelectorAll('#fsSeg button').forEach(b => { const on = +b.dataset.f === (+S.fs || 1); b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
   $('#rmBtn').setAttribute('aria-pressed', !!S.rm);

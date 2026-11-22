@@ -16,6 +16,7 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="theme-color" content="#f3f5f2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e141b" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="fonts/pretendard/pretendard.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
@@ -793,6 +794,112 @@ dialog.iview .x{position:absolute;top:calc(12px + var(--sa-top,env(safe-area-ins
 .tabbar.scrub button{transition:color 120ms var(--ease-out)}
 .tabbar button.hov{color:var(--pill-ink)}
 .tabbar.scrub button.on:not(.hov){color:var(--sub)}
+
+/* ================= 심플 블루 테마 (기본): 큰 글씨 · 넉넉한 여백 · 그림자 없는 평평한 카드 · 파란 포인트 ================= */
+:root[data-skin="simple"]{color-scheme:light;
+  --bg:#f2f4f6;--card:#ffffff;--ink:#191f28;--sub:#6b7684;--line:#e5e8eb;--accent:#3182f6;--accent-ink:#ffffff;--soft:#e8f3ff;
+  --warn:#f04452;--warn-bg:#ffeeee;--memo:#f04452;--memo-bg:#ffeeee;--shadow:0 0 #0000;--hl:0 0 #0000;--elev:0 0 #0000;
+  --ts:62%;--tl:94%;--cs:55%;--cl:36%;--ns:60%;--nl:50%;
+  --hero:transparent;--g1:#3182f6;--g2:#3182f6;--pill:#3182f6;--pill-ink:#fff;--mascot:'💙';--r-lg:22px;--r-md:20px;
+  --press:#f2f4f6;--grey5:#8b95a1;--grey7:#4e5968}
+@media (prefers-color-scheme:dark){:root[data-skin="simple"]:not([data-theme="light"]){color-scheme:dark;
+  --bg:#101013;--card:#1e1e24;--ink:#f9fafb;--sub:#9e9ea8;--line:#2c2c35;--accent:#3182f6;--accent-ink:#fff;--soft:#1b2a40;
+  --warn:#f66570;--warn-bg:#3a1e22;--memo:#f66570;--memo-bg:#3a1e22;--ts:32%;--tl:22%;--cs:70%;--cl:80%;--ns:55%;--nl:48%;--press:#2a2a32;--grey5:#7e7e88;--grey7:#c3c3c6}}
+:root[data-skin="simple"][data-theme="dark"]{color-scheme:dark;
+  --bg:#101013;--card:#1e1e24;--ink:#f9fafb;--sub:#9e9ea8;--line:#2c2c35;--accent:#3182f6;--accent-ink:#fff;--soft:#1b2a40;
+  --warn:#f66570;--warn-bg:#3a1e22;--memo:#f66570;--memo-bg:#3a1e22;--ts:32%;--tl:22%;--cs:70%;--cl:80%;--ns:55%;--nl:48%;--press:#2a2a32;--grey5:#7e7e88;--grey7:#c3c3c6}
+
+/* 글꼴: Pretendard (앱에 들어 있음, SIL OFL) */
+:root[data-skin="simple"] body,:root[data-skin="simple"] dialog,:root[data-skin="simple"] button,:root[data-skin="simple"] input,:root[data-skin="simple"] textarea,:root[data-skin="simple"] select{
+  font-family:'Pretendard Variable',Pretendard,system-ui,-apple-system,'Noto Sans KR',sans-serif}
+:root[data-skin="simple"] body{letter-spacing:-.2px}
+
+/* 큰 제목: 왼쪽 정렬, 굵고 크게 */
+:root[data-skin="simple"] .ohero{align-items:flex-start;text-align:left;padding-left:8px;padding-right:8px;gap:8px;height:calc(var(--sa-top,env(safe-area-inset-top)) + 150px)}
+:root[data-skin="simple"] .ohero b{font-size:28px;font-weight:700;letter-spacing:-.9px}
+:root[data-skin="simple"] .ohero span{font-size:15px;font-weight:500;color:var(--grey5)}
+:root[data-skin="simple"] header::before{background:var(--bg);-webkit-backdrop-filter:none;backdrop-filter:none;border-bottom:0}
+:root[data-skin="simple"] .brand #dateLbl{font-size:18px;font-weight:700}
+:root[data-skin="simple"] .mascot,:root[data-skin="simple"] .chip{box-shadow:none;border:0;background:var(--card)}
+:root[data-skin="simple"] .chip{font-weight:600;color:var(--grey7)}
+
+/* 카드: 그림자·테두리 없이 흰 카드 + 넉넉한 안쪽 여백 */
+:root[data-skin="simple"] .row,:root[data-skin="simple"] .row.done{box-shadow:none!important;border:0;border-radius:20px;padding:16px 16px 16px 18px;gap:14px;margin-bottom:8px}
+:root[data-skin="simple"] .row .p{width:40px;height:40px;border-radius:50%;font-size:15px}
+:root[data-skin="simple"] .row .s b{font-size:17px;font-weight:600;letter-spacing:-.3px}
+:root[data-skin="simple"] .row .s span{font-size:14px;color:var(--grey5)}
+:root[data-skin="simple"] .row.cur{background:var(--card);box-shadow:inset 0 0 0 2px var(--accent)!important}
+:root[data-skin="simple"] .row .tag{background:var(--accent);border-radius:8px;font-size:12px;padding:4px 8px}
+:root[data-skin="simple"] .row.cur .tag::after{display:none}
+:root[data-skin="simple"] .row:active,:root[data-skin="simple"] .fcard:active,:root[data-skin="simple"] .ti:active,:root[data-skin="simple"] .meal:active{transform:scale(.97);filter:none;background:var(--press)}
+:root[data-skin="simple"] .day,:root[data-skin="simple"] .pcard,:root[data-skin="simple"] .igroup,:root[data-skin="simple"] .dcard,:root[data-skin="simple"] .todo,:root[data-skin="simple"] .meal,
+:root[data-skin="simple"] .mday,:root[data-skin="simple"] .fcard,:root[data-skin="simple"] .sgroup,:root[data-skin="simple"] .share,:root[data-skin="simple"] .hnow,:root[data-skin="simple"] .fcats button{box-shadow:none!important;border:0}
+:root[data-skin="simple"] .mday.tod,:root[data-skin="simple"] .fcard.tch{box-shadow:inset 0 0 0 2px var(--accent)!important}
+:root[data-skin="simple"] .todo,:root[data-skin="simple"] .meal,:root[data-skin="simple"] .mday,:root[data-skin="simple"] .fcard{border-radius:22px;padding:20px}
+:root[data-skin="simple"] .todo h4,:root[data-skin="simple"] .meal h4{font-size:17px;font-weight:700;color:var(--ink);margin-bottom:14px}
+:root[data-skin="simple"] .todo h4 button,:root[data-skin="simple"] .meal h4 small{color:var(--grey5);font-weight:500;font-size:14px}
+:root[data-skin="simple"] .lh{font-size:20px;font-weight:700;color:var(--ink);margin:28px 6px 12px;letter-spacing:-.5px}
+:root[data-skin="simple"] .lh small{color:var(--grey5);font-size:14px}
+:root[data-skin="simple"] .dsh{background:var(--bg);border-radius:10px;font-size:15px;padding:8px 12px}
+:root[data-skin="simple"] .dd2 button{background:var(--bg);border-radius:14px}
+:root[data-skin="simple"] .dd2 b{font-size:17px}
+:root[data-skin="simple"] .tn{background:var(--soft);border-radius:16px}
+
+/* 지금 수업 카드: 파란색 한 가지, 반짝임·광택 없이 */
+:root[data-skin="simple"] .now:not(.idle){background:var(--accent)!important;box-shadow:none!important;border-radius:24px}
+:root[data-skin="simple"] .now::before,:root[data-skin="simple"] .now::after{display:none!important}
+:root[data-skin="simple"] .now.idle{background:var(--card);color:var(--ink);box-shadow:none!important;border:0}
+:root[data-skin="simple"] .now .subj{font-size:30px;letter-spacing:-.8px}
+:root[data-skin="simple"] .now .bar{height:5px;background:rgba(255,255,255,.3)}
+:root[data-skin="simple"] .now .bar i::after{display:none}
+
+/* 요일: 고른 날은 파란 칸 */
+:root[data-skin="simple"] .daysw{background:var(--card);border-radius:20px;padding:6px}
+:root[data-skin="simple"] .day{background:transparent;border-radius:14px}
+:root[data-skin="simple"] .dpill{box-shadow:none;border-radius:14px}
+
+/* 고르는 칸(세그먼트): 회색 바탕에 흰 칸 */
+:root[data-skin="simple"] .seg{background:var(--press);border:0;border-radius:14px;padding:4px}
+:root[data-skin="simple"] .seg button{border-radius:11px;color:var(--grey5);font-weight:600}
+:root[data-skin="simple"] .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+/* 버튼: 크고 둥근 파란 버튼 / 회색 보조 버튼 */
+:root[data-skin="simple"] .btns button,:root[data-skin="simple"] .btns a{min-height:56px;border-radius:16px;font-size:17px;font-weight:600;border:0}
+:root[data-skin="simple"] .btns .pri{background:var(--accent);color:#fff}
+:root[data-skin="simple"] .btns button:not(.pri){background:var(--press);color:var(--grey7)}
+:root[data-skin="simple"] .btns button:active,:root[data-skin="simple"] .btns a:active{transform:scale(.97);filter:brightness(.95)}
+:root[data-skin="simple"] .fab{box-shadow:0 6px 16px -6px rgba(49,130,246,.6)}
+:root[data-skin="simple"] .fcats button.on{background:var(--ink);color:var(--card)}
+:root[data-skin="simple"] .fcat{border-radius:6px}
+
+/* 입력칸: 회색으로 채운 칸 */
+:root[data-skin="simple"] dialog input:not([type=checkbox]):not([type=radio]),:root[data-skin="simple"] dialog textarea,:root[data-skin="simple"] dialog select{background:var(--press);border:0;border-radius:14px}
+:root[data-skin="simple"] dialog input:focus,:root[data-skin="simple"] dialog textarea:focus{outline:2px solid var(--accent);outline-offset:0}
+
+/* 시트: 큰 제목, 위만 둥글게 */
+:root[data-skin="simple"] dialog{border-radius:28px 28px 0 0;box-shadow:none}
+:root[data-skin="simple"] dialog h2{font-size:22px;font-weight:700;letter-spacing:-.6px}
+:root[data-skin="simple"] dialog .x{background:var(--press);color:var(--grey7);border:0}
+:root[data-skin="simple"] dialog::backdrop{background:rgba(0,0,0,.4)}
+
+/* 설정 목록 */
+:root[data-skin="simple"] .sgt{color:var(--grey5);font-size:14px;font-weight:600}
+:root[data-skin="simple"] .srow b{font-size:17px;font-weight:500}
+:root[data-skin="simple"] .sgroup > * + *{border-top:0}
+:root[data-skin="simple"] .srow em{color:#b0b8c1}
+
+/* 아래 탭: 화면 끝까지 붙은 흰 막대, 고른 탭은 진하게 */
+:root[data-skin="simple"] .tabbar{left:0!important;right:0!important;bottom:0!important;transform:none!important;width:100%!important;max-width:none!important;border-radius:0!important;
+  grid-template-columns:repeat(4,1fr)!important;padding:6px 8px calc(6px + var(--sa-bottom,env(safe-area-inset-bottom)))!important;
+  background:var(--card)!important;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:0 -1px 0 var(--line)!important;border:0!important}
+:root[data-skin="simple"] .tabbar .pill{display:none}
+:root[data-skin="simple"] .tabbar button{color:#b0b8c1;font-size:11px!important;font-weight:600;min-height:50px}
+:root[data-skin="simple"] .tabbar button.on,:root[data-skin="simple"] .tabbar button.hov{color:var(--ink)}
+:root[data-skin="simple"] .tabbar.scrub button.on:not(.hov){color:#b0b8c1}
+:root[data-skin="simple"] .tabbar button svg{stroke-width:2}
+:root[data-skin="simple"] .tabbar button.on svg{stroke-width:2.3}
+:root[data-skin="simple"] .fab{bottom:calc(84px + var(--sa-bottom,env(safe-area-inset-bottom)))}
+:root[data-skin="simple"] .sky{display:none}
 [hidden]{display:none!important}
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
 </style>
