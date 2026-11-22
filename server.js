@@ -1,6 +1,6 @@
-// 세종 시간표 서버 (Cloud Run · 로컬 겸용, Node 22 내장 모듈만 사용)
+// 우리반 시간표 서버 (Cloud Run · 로컬 겸용, Node 22 내장 모듈만 사용)
 // - NEIS 인증키는 이 서버에만 있음. 화면 코드에는 절대 안 나감
-// - 세종(I10) 학교만 허용. 학교 목록은 하루, 반 목록은 6시간, 시간표는 20분 캐시
+// - 전국 17개 시·도 교육청 학교. 학교 목록은 하루, 반 목록은 6시간, 시간표는 20분, 급식 6시간, 학사일정 12시간 캐시
 // - 교시 메모: Cloud Run이면 Firestore(REST), 아니면 메모리 + data/memos.json
 'use strict';
 const http = require('http');
@@ -14,7 +14,9 @@ const env = process.env;
 const PORT = +env.PORT || 8080;
 const NEIS_KEY = (env.NEIS_KEY || '').trim(); // Cloud Run 환경 변수로 넣기 (코드에 키를 두지 않음)
 if (!NEIS_KEY) console.warn('[경고] NEIS_KEY 환경 변수가 없어요. Cloud Run → 서비스 수정 → 변수에 NEIS_KEY를 넣어 주세요.');
-const OFFICE = 'I10';                                   // 세종특별자치시교육청
+// 시·도 교육청 (NEIS ATPT_OFCDC_SC_CODE)
+const OFFICES = { B10: '서울', C10: '부산', D10: '대구', E10: '인천', F10: '광주', G10: '대전', H10: '울산', I10: '세종', J10: '경기',
+  K10: '강원', M10: '충북', N10: '충남', P10: '전북', Q10: '전남', R10: '경북', S10: '경남', T10: '제주' };
 const PUB = path.join(__dirname, 'public');
 const DATA_DIR = env.DATA_DIR || path.join(__dirname, 'data');
 const SALT = env.MEMO_SALT || 'sejong-timetable-memo-v1';
@@ -63,8 +65,10 @@ const schoolYear = () => { const d = kst(); return d.getUTCMonth() < 2 ? d.getUT
 
 // ---------- NEIS (캐시 + 동시 요청 합치기) ----------
 const cache = new Map(), pending = new Map();
-async function neis(service, params, ttl = 20 * MIN) {
-  const q = new URLSearchParams({ Type: 'json', pIndex: '1', pSize: '1000', ...params, ATPT_OFCDC_SC_CODE: OFFICE });
+async function neis(service, params, ttl = 20 * MIN, office) {
+  if (office !== '*' && !OFFICES[office]) throw new Error('교육청 코드 없음');   // '*' = 교육청 없이 (학교 코드 하나로 찾기)
+  const q = new URLSearchParams({ Type: 'json', pIndex: '1', pSize: '1000', ...params });
+  if (office !== '*') q.set('ATPT_OFCDC_SC_CODE', office);
   q.sort();
   const key = service + '?' + q;
   const hit = cache.get(key);
@@ -100,23 +104,87 @@ function classify(knd) {
   const level = knd.includes('고') ? 'h' : knd.includes('중') ? 'm' : knd.includes('초') ? 'e' : 'h';
   return { type: 'x', level, kind: '각종' };
 }
-const SCH = { src: null, map: null, list: null };
-async function getSchools() {
-  const rows = rowsOf(await neis('schoolInfo', {}, DAY), 'schoolInfo');
-  if (!rows.length) throw new Error('학교 목록 없음');
-  if (SCH.src !== rows) {
-    SCH.src = rows;
-    SCH.map = new Map(rows.map(r => [r.SD_SCHUL_CODE, {
-      code: r.SD_SCHUL_CODE, name: r.SCHUL_NM, knd: r.SCHUL_KND_SC_NM, ...classify(r.SCHUL_KND_SC_NM),
-      addr: String(r.ORG_RDNMA || '').replace(/^세종특별자치시\s*/, '').slice(0, 40),
-    }]));
-    SCH.list = [...SCH.map.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+const SCH = { pages: [], map: null, list: null, at: 0, busy: null };
+const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const choOf = t => [...t].map(c => { const k = c.charCodeAt(0) - 0xAC00; return k >= 0 && k < 11172 ? CHO[Math.floor(k / 588)] : c; }).join('');
+// 한 교육청의 학교를 1000개씩 끝까지
+async function officeRows(office) {
+  const out = [];
+  for (let i = 1; i <= 6; i++) {
+    let j;
+    try { j = await neis('schoolInfo', { pIndex: String(i) }, DAY, office); }
+    catch (e) { if (/INFO-200/.test(e.message) || i > 1) break; throw e; }   // 마지막 쪽 다음은 '데이터 없음'
+    const rows = rowsOf(j, 'schoolInfo'); out.push(rows);
+    if (rows.length < 1000) break;
   }
-  return SCH;
+  return out;
 }
+// 전국 학교 목록 (요청한 사람의 호출 횟수 제한과는 따로, 서버가 알아서 하루 한 번)
+function getSchools() {
+  if (SCH.map && Date.now() - SCH.at < 6 * HOUR) return Promise.resolve(SCH);
+  if (SCH.busy) return SCH.map ? Promise.resolve(SCH) : SCH.busy;
+  SCH.busy = reqCtx.exit(async () => {
+    try {
+      const codes = Object.keys(OFFICES);
+      const res = await Promise.allSettled(codes.map(officeRows));
+      const pages = res.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+      const changed = pages.length !== SCH.pages.length || pages.some((x, i) => x !== SCH.pages[i]);
+      if (changed && pages.length) {
+        const map = new Map();
+        for (const rows of pages) for (const r of rows) { const sc = makeSchool(r); if (sc) map.set(sc.code, sc); }
+        // 일부 교육청만 실패했으면 그 지역은 예전 목록을 그대로 둠
+        if (SCH.map) for (const [k, v] of SCH.map) if (!map.has(k) && res[codes.indexOf(v.office)].status === 'rejected') map.set(k, v);
+        SCH.pages = pages; SCH.map = map;
+        SCH.list = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+      }
+      if (SCH.map && res.every(r => r.status === 'fulfilled')) SCH.at = Date.now();
+      else if (SCH.map) SCH.at = Date.now() - 5 * HOUR;   // 실패한 지역이 있으면 1시간 뒤 다시
+      if (!SCH.map) throw new Error('학교 목록 없음');
+      return SCH;
+    } finally { SCH.busy = null; }
+  });
+  return SCH.map ? Promise.resolve(SCH) : SCH.busy;   // 예전 목록이 있으면 새로 받는 동안 그걸로
+}
+function makeSchool(r) {
+  const office = r.ATPT_OFCDC_SC_CODE, region = OFFICES[office];
+  if (!region || !r.SD_SCHUL_CODE) return null;
+  return {
+    code: r.SD_SCHUL_CODE, name: r.SCHUL_NM, knd: r.SCHUL_KND_SC_NM, ...classify(r.SCHUL_KND_SC_NM), office, region,
+    addr: String(r.ORG_RDNMA || '').replace(/^\S+(특별시|광역시|특별자치시|특별자치도|도)\s*/, '').slice(0, 40),
+    key: r.SCHUL_NM.replace(/\s+/g, ''), cho: choOf(r.SCHUL_NM.replace(/\s+/g, '')),
+  };
+}
+// 학교 하나 찾기: 전국 목록이 아직 없으면(서버가 막 켜졌을 때) 그 학교만 바로 물어봄 → 첫 화면이 기다리지 않음
+const QUICK = new Map();
 async function findSchool(code) {
   if (!/^\d{7}$/.test(code || '')) return null;
-  return (await getSchools()).map.get(code) || null;
+  if (SCH.map) { if (Date.now() - SCH.at > 6 * HOUR) getSchools().catch(() => {}); return SCH.map.get(code) || null; }
+  const all = getSchools().catch(() => null);
+  if (QUICK.has(code)) return QUICK.get(code);
+  try {
+    const r = rowsOf(await neis('schoolInfo', { SD_SCHUL_CODE: code }, DAY, '*'), 'schoolInfo')[0];
+    const sc = r ? makeSchool(r) : null;
+    if (sc) { if (QUICK.size > 2000) QUICK.clear(); QUICK.set(code, sc); }
+    return sc;
+  } catch (e) { const s = await all; return s ? s.map.get(code) || null : null; }
+}
+const pubSchool = ({ code, name, kind, type, level, addr, region, office }) => ({ code, name, kind, type, level, addr, region, office });
+// 학교 찾기: 이름(띄어쓰기 무시)·초성, 지역·종류 필터, 앞에서부터 맞는 학교 먼저
+function searchSchools(list, q, region, kind) {
+  const raw = String(q || '').replace(/\s+/g, '').slice(0, 20);
+  const onlyCho = raw && /^[ㄱ-ㅎ]+$/.test(raw);
+  const out = [];
+  for (const s of list) {
+    if (region && s.region !== region) continue;
+    if (kind === 'o' ? !(s.type === 's' || s.type === 'x') : kind && s.type !== kind) continue;
+    let score;
+    if (!raw) score = 2;
+    else if (onlyCho) { const i = s.cho.indexOf(raw); if (i < 0) continue; score = i === 0 ? 0 : 1; }
+    else { const i = s.key.indexOf(raw); if (i < 0) continue; score = i === 0 ? 0 : 1; }
+    out.push([score, s]);
+  }
+  out.sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length || a[1].name.localeCompare(b[1].name, 'ko'));
+  return { total: out.length, schools: out.slice(0, 60).map(x => pubSchool(x[1])) };
 }
 
 // ---------- 반 목록 (classInfo → 실제 반 버튼) ----------
@@ -124,7 +192,7 @@ const CRSE = { '초등학교': ['e', '초등', '초'], '중학교': ['m', '중�
 const PLAIN_DEP = new Set(['', '일반학과', '공통과정', '공통', '일반과']);
 async function getClasses(sc) {
   const ay = String(schoolYear());
-  const j = await neis('classInfo', { SD_SCHUL_CODE: sc.code, AY: ay }, 6 * HOUR);
+  const j = await neis('classInfo', { SD_SCHUL_CODE: sc.code, AY: ay }, 6 * HOUR, sc.office);
   const memo = getClasses.memo || (getClasses.memo = new WeakMap());
   if (memo.has(j)) return memo.get(j);
   const rows = rowsOf(j, 'classInfo').filter(r => +r.GRADE >= 1 && r.CLASS_NM && r.SCHUL_CRSE_SC_NM !== '유치원');
@@ -195,14 +263,14 @@ async function getTimetable(sc, cls, mon) {
   if (prefer && svcs.includes(prefer)) svcs = [prefer, ...svcs.filter(s => s !== prefer)];
   let rows = [], used = svcs[0];
   for (const svc of svcs) {
-    const j = await neis(svc, { SD_SCHUL_CODE: sc.code, GRADE: String(cls.grade), CLASS_NM: cls.nm, TI_FROM_YMD: days[0], TI_TO_YMD: days[4] });
+    const j = await neis(svc, { SD_SCHUL_CODE: sc.code, GRADE: String(cls.grade), CLASS_NM: cls.nm, TI_FROM_YMD: days[0], TI_TO_YMD: days[4] }, 20 * MIN, sc.office);
     rows = rowsOf(j, svc).filter(r =>
       (!cls.crse || !r.SCHUL_CRSE_SC_NM || r.SCHUL_CRSE_SC_NM === cls.crse) &&
       (!cls.dep || !r.DDDEP_NM || r.DDDEP_NM === cls.dep));
     used = svc;
     if (!rows.length && sc.type === 'x') {
       // 각종학교(예: 온라인 공동교육과정)는 반 없이 학년 단위로만 올라오는 수업이 있음
-      const g = await neis(svc, { SD_SCHUL_CODE: sc.code, GRADE: String(cls.grade), TI_FROM_YMD: days[0], TI_TO_YMD: days[4] });
+      const g = await neis(svc, { SD_SCHUL_CODE: sc.code, GRADE: String(cls.grade), TI_FROM_YMD: days[0], TI_TO_YMD: days[4] }, 20 * MIN, sc.office);
       rows = rowsOf(g, svc).filter(r => !r.CLASS_NM);
     }
     if (rows.length) { if (svcs.length > 1) svcHit.set(sc.code, svc); break; }
@@ -217,10 +285,55 @@ async function getTimetable(sc, cls, mon) {
   return { week: days[0], svc: used, days: days.map(d => ({ ymd: d, periods: [...map[d]].sort((a, b) => a[0] - b[0]).map(([p, s]) => ({ p, s: s.join(' · ') })) })) };
 }
 
-// 요청값(school, grade, cls) 검증 → 실제 세종 학교의 실제 반인지
+// ---------- 급식 (mealServiceDietInfo) ----------
+// 요리 이름 뒤 괄호의 숫자 = 알레르기 번호 (1 난류 … 19 잣)
+function parseDish(t) {
+  const m = String(t).match(/^(.*?)\s*\(([\d.\s]+)\)\s*$/);
+  const name = (m ? m[1] : String(t)).replace(/[*#@]+/g, '').replace(/\s+/g, ' ').trim().replace(/\s*\([가-힣]{1,2}\)$/, '').slice(0, 40);
+  const allergy = m ? [...new Set(m[2].split('.').map(x => +x).filter(x => x >= 1 && x <= 19))] : [];
+  return { name, allergy };
+}
+async function getMeals(sc, from, to) {
+  let j;
+  try { j = await neis('mealServiceDietInfo', { SD_SCHUL_CODE: sc.code, MLSV_FROM_YMD: from, MLSV_TO_YMD: to }, 6 * HOUR, sc.office); }
+  catch (e) { if (/INFO-200/.test(e.message)) return []; throw e; }   // 급식 정보 없음
+  const by = new Map();
+  for (const r of rowsOf(j, 'mealServiceDietInfo')) {
+    const dishes = String(r.DDISH_NM || '').split(/<br\s*\/?>/i).map(x => x.trim()).filter(Boolean).map(parseDish).filter(d => d.name).slice(0, 14);
+    if (!dishes.length) continue;
+    if (!by.has(r.MLSV_YMD)) by.set(r.MLSV_YMD, []);
+    by.get(r.MLSV_YMD).push({ type: String(r.MMEAL_SC_NM || '').slice(0, 6), code: +r.MMEAL_SC_CODE || 2, kcal: String(r.CAL_INFO || '').replace(/\s*Kcal/i, '').trim().slice(0, 8), dishes });
+  }
+  return [...by].sort().map(([ymd, meals]) => ({ ymd, meals: meals.sort((a, b) => a.code - b.code) }));
+}
+
+// ---------- 학사일정 (SchoolSchedule) ----------
+const SKIP_EVENT = /^(토요휴업일|토요일|일요일)$/;
+const GRADE_COLS = ['ONE_GRADE_EVENT_YN', 'TW_GRADE_EVENT_YN', 'THREE_GRADE_EVENT_YN', 'FR_GRADE_EVENT_YN', 'FIV_GRADE_EVENT_YN', 'SIX_GRADE_EVENT_YN'];
+async function getSchedule(sc, from, to) {
+  let j;
+  try { j = await neis('SchoolSchedule', { SD_SCHUL_CODE: sc.code, AA_FROM_YMD: from, AA_TO_YMD: to }, 12 * HOUR, sc.office); }
+  catch (e) { if (/INFO-200/.test(e.message)) return []; throw e; }
+  const out = [], seen = new Set();
+  for (const r of rowsOf(j, 'SchoolSchedule')) {
+    const name = String(r.EVENT_NM || '').replace(/\s+/g, ' ').trim().slice(0, 30);
+    if (!name || SKIP_EVENT.test(name)) continue;
+    const k = r.AA_YMD + name; if (seen.has(k)) continue; seen.add(k);
+    const g = GRADE_COLS.map((c, i) => r[c] === 'Y' ? i + 1 : 0).filter(Boolean);
+    out.push({ ymd: r.AA_YMD, name, off: /휴업|방학|휴일|공휴일|대체/.test(String(r.SBTR_DD_SC_NM || '') + name), g });
+  }
+  return out.sort((a, b) => a.ymd.localeCompare(b.ymd));
+}
+function rangeOk(q, maxDays) {
+  const a = parseYmd(q.from), b = parseYmd(q.to), today = parseYmd(ymdOf(kst()));
+  if (!a || !b || b < a || (b - a) / DAY > maxDays || a < addDays(today, -400) || b > addDays(today, 400)) throw httpErr(400, '날짜가 이상해요');
+  return [q.from, q.to];
+}
+
+// 요청값(school, grade, cls) 검증 → 실제 학교의 실제 반인지
 async function resolveClass(q) {
   const sc = await findSchool(q.school);
-  if (!sc) throw httpErr(400, '세종 학교가 아니에요');
+  if (!sc) throw httpErr(400, '학교를 찾을 수 없어요');
   const grade = +q.grade;
   if (!/^\d{1,2}$/.test(q.grade || '')) throw httpErr(400, '학년이 이상해요');
   const info = await getClasses(sc);
@@ -511,7 +624,7 @@ const adminOk = req => { const k = String(req.headers['x-admin-key'] || ''); ret
 function httpErr(code, msg) { const e = new Error(msg); e.code = code; e.public = true; return e; }
 const SEC = {
   'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY',
-  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
 };
 function send(res, code, obj, extra) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...SEC, ...extra });
@@ -543,13 +656,29 @@ async function api(req, res, u) {
 
   if (p === '/api/schools' && req.method === 'GET') {
     const s = await getSchools();
-    return send(res, 200, { schools: s.list.map(({ code, name, kind, type, level, addr }) => ({ code, name, kind, type, level, addr })) }, { 'Cache-Control': 'public, max-age=3600' });
+    // 예전 앱(검색어 없이 전체를 받던 버전)은 세종 학교 목록 그대로
+    if (q.q === undefined && q.r === undefined && q.k === undefined)
+      return send(res, 200, { schools: s.list.filter(x => x.office === 'I10').map(pubSchool) }, { 'Cache-Control': 'public, max-age=3600' });
+    const region = Object.values(OFFICES).includes(q.r) ? q.r : '';
+    return send(res, 200, { ...searchSchools(s.list, q.q, region, ['e', 'm', 'h', 'o'].includes(q.k) ? q.k : ''), regions: Object.values(OFFICES) }, { 'Cache-Control': 'public, max-age=600' });
+  }
+  if (p === '/api/meal' && req.method === 'GET') {
+    const sc = await findSchool(q.school);
+    if (!sc) throw httpErr(400, '학교를 찾을 수 없어요');
+    const [from, to] = rangeOk(q, 14);
+    return send(res, 200, { days: await getMeals(sc, from, to) }, { 'Cache-Control': 'public, max-age=600' });
+  }
+  if (p === '/api/schedule' && req.method === 'GET') {
+    const sc = await findSchool(q.school);
+    if (!sc) throw httpErr(400, '학교를 찾을 수 없어요');
+    const [from, to] = rangeOk(q, 130);
+    return send(res, 200, { events: await getSchedule(sc, from, to) }, { 'Cache-Control': 'public, max-age=1800' });
   }
   if (p === '/api/classes' && req.method === 'GET') {
     const sc = await findSchool(q.school);
-    if (!sc) throw httpErr(400, '세종 학교가 아니에요');
+    if (!sc) throw httpErr(400, '학교를 찾을 수 없어요');
     const { ay, fallback, courses } = await getClasses(sc);
-    return send(res, 200, { school: { code: sc.code, name: sc.name, kind: sc.kind, type: sc.type, level: sc.level }, ay, fallback, courses });
+    return send(res, 200, { school: { code: sc.code, name: sc.name, kind: sc.kind, type: sc.type, level: sc.level, region: sc.region }, ay, fallback, courses });
   }
   if (p === '/api/timetable' && req.method === 'GET') {
     const { sc, cls } = await resolveClass(q);
@@ -801,7 +930,7 @@ async function api(req, res, u) {
     if (p === '/api/admin/teachers' && req.method === 'POST') {
       const b = await readJson(req);
       const sc = await findSchool(String(b.school || ''));
-      if (!sc) throw httpErr(400, '세종 학교를 골라 주세요');
+      if (!sc) throw httpErr(400, '학교를 찾을 수 없어요');
       const nm = cleanText(b.name, 10, true);
       if (nm.tooLong || !nm.text) throw httpErr(400, '선생님 이름(10자까지)을 써 주세요');
       const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -858,7 +987,7 @@ const server = http.createServer(async (req, res) => {
 (async () => {
   const make = await pickStore();
   store = make(COL); board = make(BOARD_COL); teachersSt = make('teachers'); cfgSt = make('classcfg');
-  server.listen(PORT, () => console.log(`세종 시간표 서버 :${PORT} (메모 저장: ${store.mode})`));
+  server.listen(PORT, () => console.log(`우리반 시간표 서버 :${PORT} (메모 저장: ${store.mode})`));
   getSchools().catch(e => console.warn('학교 목록 미리 받기 실패:', e.message));
 })();
 const bye = () => { for (const st of [store, board, teachersSt, cfgSt]) if (st && st.flush) st.flush(); process.exit(0); };

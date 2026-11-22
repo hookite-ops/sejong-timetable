@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="color-scheme" content="light dark">
-<title>세종 시간표</title>
-<meta name="description" content="세종시 모든 초·중·고 시간표와 같은 반 교시 메모">
+<title>우리반 시간표</title>
+<meta name="description" content="전국 초·중·고 시간표, 급식, 학사일정과 우리 반 게시판">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="세종 시간표">
+<meta name="apple-mobile-web-app-title" content="우리반 시간표">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="format-detection" content="telephone=no">
 <meta name="theme-color" content="#f3f5f2" media="(prefers-color-scheme: light)">
@@ -631,6 +631,59 @@ button.srow:active,a.srow:active{background:color-mix(in srgb,var(--ink) 6%,tran
 .swt::after{content:'';position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform 260ms var(--ease-out)}
 .srow.tg[aria-pressed="true"] .swt{background:var(--accent)}
 .srow.tg[aria-pressed="true"] .swt::after{transform:translateX(18px)}
+
+/* ================= 대규모 업데이트: 급식 · 학사일정 · 전국 학교 찾기 · 이미지 공유 ================= */
+body:not([data-mode="today"]) #mealCard{display:none}
+body[data-mode="week"][data-wv="meal"] .list,body[data-wv="meal"] .daysw{display:none}
+.mweek{display:none}
+body[data-mode="week"][data-wv="meal"] .mweek{display:block}
+
+/* 급식 카드 */
+.meal{background:var(--card);border-radius:var(--r-lg,22px);box-shadow:var(--hl),var(--elev);padding:14px 16px 14px;margin:12px 0 4px;text-align:left;width:100%;display:block}
+.meal:empty{display:none}
+.meal h4{margin:0 0 10px;font-size:14px;font-weight:700;color:var(--sub);display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.meal h4 small{font-weight:500;font-size:12.5px}
+.dishes{display:flex;flex-wrap:wrap;gap:6px}
+.dsh{display:inline-flex;align-items:center;gap:4px;padding:7px 11px;border-radius:12px;background:var(--bg);font-size:14.5px;line-height:1.25;color:var(--ink)}
+.dsh.main{font-weight:700}
+.dsh.warn{background:color-mix(in srgb,var(--memo) 14%,var(--card));color:var(--memo);font-weight:700}
+.dsh.warn::after{content:'⚠';font-size:12px}
+.mtabs{display:flex;gap:6px;margin:0 0 10px}
+.mtabs b{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--soft);color:var(--accent)}
+.mday{background:var(--card);border-radius:22px;box-shadow:var(--hl),var(--elev);padding:14px 16px;margin-bottom:10px}
+.mday.tod{box-shadow:inset 0 0 0 2px var(--accent),var(--elev)}
+.mday h4{margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;font-size:15px;font-weight:700}
+.mday h4 small{font-size:12.5px;font-weight:500;color:var(--sub)}
+.mday .none{color:var(--sub);font-size:14px}
+.mday + .mday .mt{margin-top:0}
+.mt{display:block;font-size:12.5px;font-weight:700;color:var(--accent);margin:8px 0 6px}
+.mt:first-of-type{margin-top:0}
+
+/* 알레르기 고르기 */
+.snote{margin:-6px 2px 12px;font-size:13px;color:var(--sub);line-height:1.4}
+.alg{display:flex;flex-wrap:wrap;gap:6px}
+.alg button{padding:8px 12px;border-radius:999px;background:var(--bg);font-size:14px;min-height:38px;transition:background-color 160ms var(--ease-out),color 160ms var(--ease-out)}
+.alg button[aria-pressed="true"]{background:var(--memo);color:#fff;font-weight:700}
+
+/* 학사일정 */
+.evb{display:flex;align-items:center;gap:8px;padding:10px 14px;margin:0 0 10px;border-radius:16px;background:var(--soft);color:var(--accent);font-size:14.5px;font-weight:700}
+.evb.off{background:color-mix(in srgb,var(--memo) 12%,var(--card));color:var(--memo)}
+.grid th small.ev{display:block;font-size:9.5px;font-weight:700;color:var(--memo);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56px;margin-left:auto;margin-right:auto}
+.grid th small.ev.on{color:var(--accent)}
+.dd2 button.sch{background:var(--soft)}
+.dd2 button.sch i{font-style:normal;font-size:10.5px;font-weight:700;color:var(--accent);background:var(--card);border-radius:6px;padding:1px 5px;margin-left:4px;vertical-align:1px}
+
+/* 학교 찾기: 이름 + 지역 */
+.srch{display:flex;gap:8px;align-items:stretch}
+.srch input{flex:1;min-width:0}
+.srch select{flex:none;font-size:16px;padding:0 10px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:48px}
+.sitem .t span em{font-style:normal;font-weight:700;color:var(--accent);margin-right:4px}
+.smsg .rec{margin-top:14px;text-align:left}
+
+/* 시간표 이미지 */
+.share{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin:12px 0 0;padding:13px;border-radius:18px;background:var(--card);box-shadow:var(--hl),var(--elev);font-size:15px;font-weight:700;color:var(--accent);min-height:48px}
+.imgout{display:block;width:100%;border-radius:16px;margin:4px 0 10px;box-shadow:0 6px 20px -8px rgba(0,0,0,.3);background:#fff}
+#imgDl{display:flex;align-items:center;justify-content:center;text-decoration:none}
 [hidden]{display:none!important}
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
 </style>
@@ -638,9 +691,9 @@ button.srow:active,a.srow:active{background:color-mix(in srgb,var(--ink) 6%,tran
 <body>
 <div class="sky" id="sky" aria-hidden="true"></div>
 <div class="ptr" id="ptr" aria-hidden="true"><i>↓</i><span>당겨서 새로고침</span></div>
-<section class="ohero" id="ohero"><b id="heroDate" aria-hidden="true">시간표</b><span id="heroSub">세종 시간표</span></section>
+<section class="ohero" id="ohero"><b id="heroDate" aria-hidden="true">시간표</b><span id="heroSub">우리반 시간표</span></section>
 <header id="appbar">
-  <div class="brand"><button class="mascot" id="mascot" aria-label="테마 바꾸기"></button><div class="bt"><small id="sub">세종 시간표</small><span id="dateLbl">시간표</span></div></div>
+  <div class="brand"><button class="mascot" id="mascot" aria-label="테마 바꾸기"></button><div class="bt"><small id="sub">우리반 시간표</small><span id="dateLbl">시간표</span></div></div>
   <button class="chip" id="classBtn">학교 선택</button>
 </header>
 
@@ -656,9 +709,10 @@ button.srow:active,a.srow:active{background:color-mix(in srgb,var(--ink) 6%,tran
 </div>
 
 <div class="todo" id="dstrip"></div>
+<div class="meal" id="mealCard"></div>
 <h3 class="lh" id="todayHead">오늘 시간표</h3>
 
-<div class="seg wvseg" id="wvSeg" role="tablist" aria-label="시간표 보기"><button data-wv="grid" role="tab">한 주 표</button><button data-wv="day" role="tab">하루씩</button></div>
+<div class="seg wvseg" id="wvSeg" role="tablist" aria-label="시간표 보기"><button data-wv="grid" role="tab">한 주 표</button><button data-wv="day" role="tab">하루씩</button><button data-wv="meal" role="tab">급식</button></div>
 <div class="weeknav">
   <button id="prevW" aria-label="이전 주">‹</button>
   <span class="wk" id="wkLbl">이번 주</span>
@@ -668,6 +722,7 @@ button.srow:active,a.srow:active{background:color-mix(in srgb,var(--ink) 6%,tran
 <div class="daysw"><i class="dpill" id="dpill"></i><div class="days" id="days"></div></div>
 <div class="list" id="list"></div>
 <div class="grid" id="grid"></div>
+<div class="mweek" id="mealWeek"></div>
 <section class="board" id="board" aria-label="우리 반"></section>
 <section class="setpage" id="setPage" aria-label="설정">
   <div class="sgt">우리 반</div>
@@ -682,6 +737,10 @@ button.srow:active,a.srow:active{background:color-mix(in srgb,var(--ink) 6%,tran
     <div class="spad"><b class="slbl">글자 크기</b><div class="seg" id="fsSeg" role="radiogroup" aria-label="글자 크기"><button role="radio" data-f="1">보통</button><button role="radio" data-f="1.1">크게</button><button role="radio" data-f="1.2">아주 크게</button></div></div>
     <button class="srow tg" id="rmBtn" aria-pressed="false"><span><b>움직임 줄이기</b><small>화면이 미끄러지는 효과를 꺼요</small></span><i class="swt" aria-hidden="true"></i></button>
     <button class="srow tg" id="fullBtn" hidden aria-pressed="false"><span><b>전체화면</b><small>위아래 바 숨기기 · 끝에서 밀면 잠깐 보여요</small></span><i class="swt" aria-hidden="true"></i></button>
+  </div>
+  <div class="sgt">급식</div>
+  <div class="sgroup">
+    <div class="spad"><b class="slbl">내 알레르기</b><p class="snote">고르면 급식에 들어 있을 때 ⚠로 알려 줘요. 이 휴대폰에만 저장돼요.</p><div class="alg" id="allergyPick"></div></div>
   </div>
   <div class="sgt">선생님</div>
   <div class="sgroup">
@@ -706,7 +765,7 @@ button.srow:active,a.srow:active{background:color-mix(in srgb,var(--ink) 6%,tran
 <!-- 학교 찾기 -->
 <dialog id="schoolDlg" class="tall" aria-labelledby="schoolTitle">
   <div class="dh"><div><h2 id="schoolTitle">우리 학교 찾기</h2></div><button class="x" id="schoolClose">닫기</button></div>
-  <input type="search" id="schoolQ" class="keyin" placeholder="학교 이름 (예: 새움중, 도담초, ㅅㅇ)" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="학교 이름 검색">
+  <div class="srch"><input type="search" id="schoolQ" class="keyin" placeholder="학교 이름 (예: 새움중, 경기고, ㅅㅇ)" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="학교 이름 검색"><select id="regionSel" aria-label="지역"><option value="">전국</option><option>서울</option><option>부산</option><option>대구</option><option>인천</option><option>광주</option><option>대전</option><option>울산</option><option>세종</option><option>경기</option><option>강원</option><option>충북</option><option>충남</option><option>전북</option><option>전남</option><option>경북</option><option>경남</option><option>제주</option></select></div>
   <div class="seg" id="kindSeg"><button data-k="" class="on">전체</button><button data-k="e">초등</button><button data-k="m">중학</button><button data-k="h">고등</button><button data-k="o">특수·기타</button></div>
   <div class="slist" id="schoolList"></div>
 </dialog>
@@ -726,6 +785,14 @@ button.srow:active,a.srow:active{background:color-mix(in srgb,var(--ink) 6%,tran
   <div class="times" id="times"></div>
   <button class="okt" id="timesOk" aria-pressed="false"><i aria-hidden="true"></i>이 시간이 우리 학교 일과표와 같아요</button>
   <div class="btns"><button id="resetT">시간 기본값</button><button class="pri" id="save">저장</button></div>
+</dialog>
+
+<!-- 시간표 이미지 -->
+<dialog id="imgDlg" aria-labelledby="imgTitle">
+  <div class="dh"><div><h2 id="imgTitle">시간표 이미지</h2></div><button class="x" id="imgClose">닫기</button></div>
+  <img id="imgOut" class="imgout" alt="이번 주 시간표 이미지">
+  <p class="d" id="imgHint">이미지를 길게 눌러 저장하거나, 화면을 캡처해 친구에게 보내요.</p>
+  <div class="btns"><a class="pri" id="imgDl" download="시간표.png" href="#">이미지 저장</a></div>
 </dialog>
 
 <!-- 교시 메모 -->

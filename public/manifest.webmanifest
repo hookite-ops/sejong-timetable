@@ -1,7 +1,7 @@
 {
-  "name": "세종 시간표",
-  "short_name": "세종 시간표",
-  "description": "세종시 모든 초·중·고 시간표와 같은 반 교시 메모",
+  "name": "우리반 시간표",
+  "short_name": "우리반 시간표",
+  "description": "전국 초·중·고 시간표, 급식, 학사일정과 우리 반 게시판",
   "lang": "ko",
   "start_url": "/",
   "scope": "/",
