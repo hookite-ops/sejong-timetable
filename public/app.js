@@ -1526,10 +1526,76 @@ window.__back = () => {
   if ($('#postDlg').open) { $('#postDlg').close(); return true; }
   for (const id of ['#memoDlg', '#schoolDlg']) if ($(id).open) { if (id !== '#schoolDlg' || S.school || $('#dlg').open) $(id).close(); return true; }
   if ($('#dlg').open) { if (S.cls) $('#dlg').close(); return true; }
+  // 한 단계씩 뒤로: 하위 보기 → 오늘 탭 → 이번 주 → 맨 위 → 한 번 더 누르면 닫기
+  if (mode === 'week' && wv !== 'grid') { setWv('grid'); return true; }
+  if (mode === 'board' && bv === 'feed' && feedCat) { feedCat = ''; renderFeed(null, true); loadFeed(true); return true; }
   if (mode !== 'today') { setMode('today'); return true; }
   if (weekOffset !== 0) { shiftWeek(-weekOffset); return true; }
-  return false;
+  if (scrollY > 120) { scrollTo({ top: 0, behavior: RM.matches ? 'auto' : 'smooth' }); return true; }
+  if (Date.now() - backAt < 2000) return false;
+  backAt = Date.now(); haptic(6); toast('뒤로 가기를 한 번 더 누르면 닫혀요');
+  return true;
 };
+let backAt = 0;
+// 브라우저(크롬 등)에서도 갤럭시 뒤로 가기가 앱처럼 동작하게: 기록을 하나 쌓아 두고 뒤로 가기를 가로챔
+if (!window.AndroidBars) {
+  try {
+    history.replaceState({ app: 0 }, ''); history.pushState({ app: 1 }, '');
+    addEventListener('popstate', () => { if (window.__back()) history.pushState({ app: 1 }, ''); else history.back(); });
+  } catch (e) {}
+}
+
+// ---------- 아래 탭: 엄지로 밀어서 이동, 꾹 눌러 바로가기 ----------
+{
+  const bar = $('.tabbar'), pill = $('#tpill'), btns = ['#tDay', '#tWeek', '#tClass', '#tSet'].map(id => $(id));
+  let st = null, lpT = 0, swallow = false;
+  const idxAt = x => { const r = btns[0].getBoundingClientRect(), w = r.width; return Math.max(0, Math.min(3, Math.floor((x - r.left) / w))); };
+  const SHORT = [
+    ['새로고침', () => { setMode('today'); load(true); loadMemos(); boardWait = 0; loadBoard(); mealWait = 0; loadMeals(true); loadSched(true); toast('🔄 새로 받는 중이에요'); }],
+    ['시간표 이미지', () => { setMode('week'); if (wv !== 'grid') setWv('grid'); setTimeout(shareImage, 120); }],
+    ['글쓰기', () => { setMode('board'); if (bv !== 'feed') setBv('feed'); setTimeout(openWrite, 120); }],
+    ['테마 바꾸기', () => $('#mascot').click()],
+  ];
+  bar.addEventListener('pointerdown', e => {
+    if (!e.isPrimary || !e.target.closest('button')) return;
+    st = { x: e.clientX, y: e.clientY, i: idxAt(e.clientX), scrub: false, id: e.pointerId };
+    clearTimeout(lpT);
+    lpT = setTimeout(() => {   // 꾹 누르기 (0.45초, 움직이지 않았을 때)
+      if (!st || st.scrub) return;
+      const [name, fn] = SHORT[st.i]; st = null; swallow = true;
+      haptic(25); if (!RM.matches) btns[idxAt(e.clientX)].animate([{ transform: 'scale(1)' }, { transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: 300, easing: EASE });
+      toast('⚡ ' + name); fn();
+    }, 450);
+  });
+  bar.addEventListener('pointermove', e => {
+    if (!st || e.pointerId !== st.id) return;
+    const dx = e.clientX - st.x;
+    if (!st.scrub && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(e.clientY - st.y)) {
+      st.scrub = true; clearTimeout(lpT); bar.setPointerCapture(st.id); pill.style.transition = 'none'; bar.classList.add('scrub');
+    }
+    if (!st.scrub) { if (Math.hypot(dx, e.clientY - st.y) > 12) clearTimeout(lpT); return; }
+    const r0 = btns[0].getBoundingClientRect(), w = r0.width;
+    const off = Math.max(0, Math.min(3 * w, e.clientX - r0.left - w / 2));
+    pill.style.transform = `translateX(${off}px)`;
+    const i = idxAt(e.clientX);
+    if (i !== st.i) { st.i = i; haptic(5); btns.forEach((b, k) => b.classList.toggle('hov', k === i)); }
+  });
+  const end = e => {
+    clearTimeout(lpT);
+    if (!st || e.pointerId !== st.id) { st = null; return; }
+    const s0 = st; st = null;
+    if (!s0.scrub) return;
+    swallow = true; bar.classList.remove('scrub'); btns.forEach(b => b.classList.remove('hov'));
+    pill.style.transition = '';
+    const m = MODES[s0.i];
+    if (m === mode) placeTabPill(); else { haptic(); setMode(m); }
+  };
+  bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
+  bar.addEventListener('click', e => { if (swallow) { e.stopPropagation(); e.preventDefault(); swallow = false; } }, true);
+  bar.addEventListener('contextmenu', e => e.preventDefault());
+  // 처음 한 번만 알려 주기
+  if (!store.get('tabTip', false)) setTimeout(() => { if (document.hidden || document.querySelector('dialog[open]')) return; store.set('tabTip', true); toast('팁: 아래 탭을 옆으로 밀거나 꾹 누르면 더 빨라요'); }, 6000);
+}
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 document.body.dataset.mode = mode; document.body.dataset.wv = wv; document.body.dataset.bv = bv;
 document.querySelectorAll('#bvSeg button').forEach(b => b.classList.toggle('on', b.dataset.bv === bv));

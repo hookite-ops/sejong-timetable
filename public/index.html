@@ -788,6 +788,11 @@ dialog.iview img{max-width:100%;max-height:100%;object-fit:contain}
 dialog.iview .grab{display:none}
 dialog.iview .x{position:absolute;top:calc(12px + var(--sa-top,env(safe-area-inset-top)));right:14px;background:rgba(255,255,255,.18);color:#fff}
 .ivn{position:absolute;bottom:calc(20px + var(--sa-bottom,env(safe-area-inset-bottom)));left:0;right:0;text-align:center;color:#fff;font-size:14px;font-weight:600}
+.tabbar{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.tabbar.scrub .pill{transform-origin:50% 50%}
+.tabbar.scrub button{transition:color 120ms var(--ease-out)}
+.tabbar button.hov{color:var(--pill-ink)}
+.tabbar.scrub button.on:not(.hov){color:var(--sub)}
 [hidden]{display:none!important}
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
 </style>
@@ -855,6 +860,7 @@ dialog.iview .x{position:absolute;top:calc(12px + var(--sa-top,env(safe-area-ins
   <div class="sgt">정보</div>
   <div class="sgroup">
     <a class="srow" href="privacy.html" target="_blank" rel="noopener"><span><b>개인정보처리방침 · 이용 규칙</b></span><em>›</em></a>
+    <div class="srow"><span><b>빠른 조작</b><small>아래 탭을 엄지로 옆으로 밀면 이동 · 꾹 누르면 오늘=새로고침, 시간표=이미지, 우리 반=글쓰기, 설정=테마 · 뒤로 가기는 한 단계씩 돌아가요</small></span></div>
     <div class="srow"><span><b>시간표 자동 업데이트</b><small id="sNeis">NEIS에서 받아 와요</small></span></div>
   </div>
 </section>
