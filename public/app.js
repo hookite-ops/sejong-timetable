@@ -321,7 +321,7 @@ $('#wImgs').onclick = e => {
 async function shrinkImage(file){
   let src;
   try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
-  catch (e) { src = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(file); }); }
+  catch (e) { src = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => no(new Error(/hei[cf]/i.test(file.type + file.name) ? '고효율(HEIC) 사진은 못 올려요. 카메라 설정에서 고효율 사진을 끄거나 다른 사진을 골라 주세요' : '이 사진은 열 수 없어요')); im.src = URL.createObjectURL(file); }); }
   const W = src.width || src.naturalWidth, H = src.height || src.naturalHeight;
   let max = 1280, q = .82, out = null;
   for (let i = 0; i < 6; i++) {
@@ -337,7 +337,7 @@ async function shrinkImage(file){
 }
 const blobB64 = b => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(b); });
 $('#wFile').onchange = async e => {
-  const files = [...e.target.files].filter(f => /^image\//.test(f.type)).slice(0, 4 - wImgs.length); e.target.value = '';
+  const files = [...e.target.files].filter(f => !f.type || /^image\//.test(f.type)).slice(0, 4 - wImgs.length); e.target.value = '';
   for (const f of files) {
     const m = { url: URL.createObjectURL(f), busy: true }; wImgs.push(m); drawWrite();
     try {
