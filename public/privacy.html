@@ -20,10 +20,15 @@ a{color:var(--accent)}
 table{width:100%;border-collapse:collapse;font-size:14.5px}
 td,th{border-top:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
 th{color:var(--sub);font-weight:600;white-space:nowrap}
+.top{position:sticky;top:0;z-index:5;margin:calc(-1 * (env(safe-area-inset-top) + 20px)) -16px 12px;padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+.back{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--ink);font-size:16px;font-weight:700;text-decoration:none;-webkit-tap-highlight-color:transparent}
+.back:active{transform:scale(.97)}
+.bottom{display:flex;justify-content:center;margin:28px 0 8px}
 </style>
 </head>
 <body>
 <main>
+<div class="top"><a class="back" href="./">‹ 앱으로 돌아가기</a></div>
 <h1>우리반 시간표</h1>
 <p class="sub">개인정보처리방침 · 이용 규칙 · 시행일 2026년 11월 22일</p>
 
@@ -71,6 +76,7 @@ th{color:var(--sub);font-weight:600;white-space:nowrap}
 <p>개인정보·신고·삭제 요청: <a href="mailto:hookite@gmail.com">hookite@gmail.com</a><br>
 <span class="sub">요청을 받으면 7일 안에 처리해요.</span></p>
 </section>
+<div class="bottom"><a class="back" href="./">‹ 앱으로 돌아가기</a></div>
 </main>
 </body>
 </html>
