@@ -524,7 +524,7 @@ async function pickStore() {
   }
   return col => new LocalStore(DATA_DIR, col);
 }
-let store, board, teachersSt, cfgSt;
+let store, board, teachersSt, cfgSt, feedSt, cmtSt, imgSt;
 
 // 같은 반·주 메모 목록은 25초 캐시 + 동시 요청 합치기 (Firestore 읽기 비용 절약)
 // 이 인스턴스에서 쓰기·삭제·신고하면 바로 무효화(dropMemos). 다른 인스턴스의 새 메모는 최대 25초 늦게 보임
@@ -581,6 +581,43 @@ const pub = (d, me, isT) => ({ id: d.id, ymd: d.ymd, period: d.period, text: d.t
   mine: !!me && d.ownerHash === me, reported: !!me && d.reporters.includes('t:' + me), ...(d.teacher ? { teacher: true } : {}),
   ...(isT ? { reports: d.reports, hidden: d.hidden } : {}) });
 
+
+// ---------- 반 소식 (블로그식 글 · 댓글 · 공감 · 사진) ----------
+// feed: 글 하나 = 문서 하나 (key = 반·학년도), comments: key = 글 id, images: 사진 한 장 = 문서 하나(압축된 base64)
+const CATS = ['free', 'qna', 'info'];
+const RXS = ['h', 'l', 'f'];   // ❤️ 👍 😂
+const FEED = { title: 40, body: 2000, cmt: 300, imgs: 4, imgB64: 520 * 1024, maxPosts: 400, maxCmts: 300 };
+function feedPub(d, me, isT, full) {
+  const rx = { h: 0, l: 0, f: 0 }, myRx = [];
+  for (const v of d.rx || []) { const [t, who] = String(v).split(':'); if (t in rx) { rx[t]++; if (me && who === VOTE_ID(me)) myRx.push(t); } }
+  const chars = [...(d.body || '')];
+  return { id: d.id, cat: d.cat, title: d.title, body: full ? d.body : chars.slice(0, 120).join(''), more: !full && chars.length > 120,
+    imgs: d.imgs || [], nick: d.nick, at: d.createdAt, rx, myRx, ncm: d.ncm || 0,
+    mine: !!me && d.ownerHash === me, reported: !!me && d.reporters.includes('t:' + me),
+    ...(d.teacher ? { teacher: true } : {}), ...(isT ? { reports: d.reports, hidden: d.hidden } : {}) };
+}
+const cmtPub = (d, me, isT) => ({ id: d.id, pid: d.pid || '', text: d.gone ? '' : d.text, gone: !!d.gone, nick: d.gone ? '' : d.nick, at: d.createdAt,
+  mine: !!me && d.ownerHash === me && !d.gone, reported: !!me && d.reporters.includes('t:' + me),
+  ...(d.teacher ? { teacher: true } : {}), ...(isT ? { reports: d.reports, hidden: d.hidden } : {}) });
+// 인기순: 공감 + 댓글×2 를 시간이 지날수록 낮게
+const hotScore = d => ((d.rx || []).length + (d.ncm || 0) * 2 + 1) / Math.pow((Date.now() - d.createdAt) / HOUR + 2, 1.3);
+// 사진: 자주 보는 사진은 서버 메모리에 (최대 약 40MB)
+const imgCache = new Map(); let imgCacheBytes = 0;
+function imgCachePut(id, v) {
+  if (imgCache.has(id)) return; imgCache.set(id, v); imgCacheBytes += v.buf.length;
+  while (imgCacheBytes > 40 * 1024 * 1024) { const [k, x] = imgCache.entries().next().value; imgCache.delete(k); imgCacheBytes -= x.buf.length; }
+}
+const IMG_MAGIC = [['image/jpeg', b => b[0] === 0xff && b[1] === 0xd8], ['image/png', b => b[0] === 0x89 && b[1] === 0x50],
+  ['image/webp', b => b.slice(0, 4).toString() === 'RIFF' && b.slice(8, 12).toString() === 'WEBP']];
+async function postFeedCheck(req, b) {
+  if (!validToken(b.token)) throw httpErr(400, '기기 토큰이 없어요');
+  const { sc, cls } = await resolveClass({ school: String(b.school || ''), grade: String(b.grade ?? ''), cls: String(b.cls ?? '') });
+  const T = await teacherOf(req), isT = !!T && T.school === sc.code;
+  const key = boardKey(sc.code, cls.grade, cls.id);
+  if (!isT && (await getCfg(key)).locked) throw httpErr(403, '선생님이 지금은 글쓰기를 잠가 두었어요');
+  return { sc, cls, T, isT, key };
+}
+
 // ---------- 선생님 ----------
 const tCodeHash = c => hash('tcode:' + String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
 const listTeachers = () => listOf(teachersSt, 't');
@@ -635,11 +672,11 @@ function clientIp(req) {
   const hops = +env.TRUSTED_PROXY_HOPS || 1;     // Cloud Run: 맨 오른쪽 값이 구글이 붙인 실제 IP
   return xff.length ? xff[Math.max(0, xff.length - hops)] : (req.socket.remoteAddress || '?');
 }
-function readJson(req) {
+function readJson(req, max = 4096) {
   return new Promise((ok, no) => {
     if (!/^application\/json/i.test(req.headers['content-type'] || '')) return no(httpErr(415, 'JSON만 받아요'));
     let n = 0; const chunks = [];
-    req.on('data', c => { n += c.length; if (n > 4096) { no(httpErr(413, '너무 길어요')); req.destroy(); } else chunks.push(c); });
+    req.on('data', c => { n += c.length; if (n > max) { no(httpErr(413, '너무 길어요')); req.destroy(); } else chunks.push(c); });
     req.on('end', () => { try { ok(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); } catch (e) { no(httpErr(400, '잘못된 요청')); } });
     req.on('error', no);
   });
@@ -892,6 +929,180 @@ async function api(req, res, u) {
     return send(res, 200, { post: pubPost(r.doc, me, isT) });
   }
 
+  // ---------- 반 소식 ----------
+  if (p === '/api/feed' && req.method === 'GET') {
+    const { sc, cls } = await resolveClass(q);
+    const tok = req.headers['x-memo-token'], me = validToken(tok) ? hash(tok) : null;
+    const T = await teacherOf(req), isT = !!T && T.school === sc.code;
+    const key = boardKey(sc.code, cls.grade, cls.id), cat = CATS.includes(q.cat) ? q.cat : '';
+    let list = (await listOf(feedSt, key)).filter(d => (isT || !d.hidden) && (!cat || d.cat === cat));
+    if (q.sort === 'hot') list.sort((a, b) => hotScore(b) - hotScore(a));
+    else list.sort((a, b) => b.createdAt - a.createdAt);
+    // 선생님 글은 일주일 동안 맨 위에
+    const pin = list.filter(d => d.teacher && Date.now() - d.createdAt < 7 * DAY);
+    list = [...pin, ...list.filter(d => !pin.includes(d))].slice(0, 120);
+    return send(res, 200, { posts: list.map(d => feedPub(d, me, isT, false)), locked: (await getCfg(key)).locked, teacher: isT });
+  }
+  if (p === '/api/feed' && req.method === 'POST') {
+    if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
+    const b = await readJson(req, 16 * 1024);
+    const ip = clientIp(req), rateMsg = '너무 빨리 쓰고 있어요. 1분 뒤에 다시 해 주세요';
+    const lim = [['f:t:' + b.token, 3, MIN], ['p:i:' + ip, LIM.postPerIp, MIN], ['p:ih:' + ip, LIM.postPerIpHour, HOUR], ['f:td:' + b.token, 30, DAY]];
+    if (!lim.every(([k, max, win]) => rateOk(k, max, false, win))) throw httpErr(429, rateMsg);
+    const { T, isT, key, sc, cls } = await postFeedCheck(req, b);
+    const cat = CATS.includes(b.cat) ? b.cat : 'free';
+    const ti = cleanText(b.title, FEED.title, true), bo = cleanText(b.body, FEED.body, false), n = cleanText(b.nick, LIM.nick, true);
+    if (ti.tooLong) throw httpErr(400, `제목은 ${FEED.title}자까지예요`);
+    if (bo.tooLong) throw httpErr(400, `본문은 ${FEED.body}자까지예요`);
+    if (n.tooLong) throw httpErr(400, `닉네임은 ${LIM.nick}자까지예요`);
+    const imgs = Array.isArray(b.imgs) ? [...new Set(b.imgs.map(String))].filter(x => /^[a-f0-9]{20}$/.test(x)).slice(0, FEED.imgs) : [];
+    if (!ti.text) throw httpErr(400, '제목을 써 주세요');
+    if (!bo.text && !imgs.length) throw httpErr(400, '내용을 써 주세요');
+    const me = hash(b.token);
+    for (const id of imgs) { const im = await imgSt.get(id); if (!im || im.ownerHash !== me || im.key !== key) throw httpErr(400, '사진을 다시 올려 주세요'); }
+    if (!rateOk('b:k:' + key, LIM.boardPerKey, false)) throw httpErr(429, '우리 반에 글이 너무 빨리 올라오고 있어요');
+    const cnt = (await listOf(feedSt, key)).length;
+    if (cnt >= FEED.maxPosts) throw httpErr(429, '이번 학년도 글이 꽉 찼어요. 지난 글을 지워 주세요');
+    lim.forEach(([k, max, win]) => rateOk(k, max, true, win)); rateOk('b:k:' + key, LIM.boardPerKey);
+    const doc = { id: crypto.randomBytes(10).toString('hex'), key, school: sc.code, grade: cls.grade, cls: cls.id, cat, title: ti.text, body: bo.text || '', imgs,
+      nick: isT ? T.name + ' 선생님' : (n.text || '익명'), rx: [], ncm: 0, createdAt: Date.now(), ownerHash: me, reports: 0, reporters: [], ipVotes: [], hidden: false };
+    if (isT) doc.teacher = true;
+    await feedSt.create(doc); dropList(feedSt, key);
+    return send(res, 201, { post: feedPub(normDoc(doc), me, isT, true) });
+  }
+  m = p.match(/^\/api\/feed\/([a-f0-9]{20})(\/react|\/report|\/hide|\/comments)?$/);
+  if (m && req.method === 'GET' && !m[2]) {
+    const d = await feedSt.get(m[1]);
+    const tok = req.headers['x-memo-token'], me = validToken(tok) ? hash(tok) : null;
+    const T = await teacherOf(req), isT = !!T && !!d && T.school === d.school;
+    if (!d || (d.hidden && !isT)) throw httpErr(404, '지워진 글이에요');
+    costGate('store');
+    const cm = (await listOf(cmtSt, d.id)).filter(c => isT || !c.hidden).sort((a, b) => a.createdAt - b.createdAt).map(c => cmtPub(c, me, isT));
+    return send(res, 200, { post: feedPub(d, me, isT, true), comments: cm });
+  }
+  if (m && ((req.method === 'DELETE' && !m[2]) || (req.method === 'POST' && m[2]))) {
+    if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
+    const b = await readJson(req, 4096);
+    if (!validToken(b.token)) throw httpErr(400, '기기 토큰이 없어요');
+    const me = hash(b.token), ip = clientIp(req);
+    const d = await feedSt.get(m[1]);
+    const T = await teacherOf(req), isT = !!T && !!d && T.school === d.school;
+    if (!d || (d.hidden && !isT)) throw httpErr(404, '이미 지워진 글이에요');
+    if (!m[2]) {
+      if (d.ownerHash !== me && !isT) throw httpErr(403, '내가 쓴 글만 지울 수 있어요');
+      await feedSt.remove(d.id); dropList(feedSt, d.key);
+      // 댓글·사진도 같이 (실패해도 글은 이미 안 보임)
+      (async () => { for (const c of await cmtSt.list(d.id)) await cmtSt.remove(c.id); for (const i of d.imgs || []) { await imgSt.remove(i); imgCache.delete(i); } })().catch(e => console.warn('글 정리 실패', e.message));
+      return send(res, 200, { ok: true });
+    }
+    if (m[2] === '/hide') {
+      if (!isT) throw httpErr(403, '선생님만 할 수 있어요');
+      await feedSt.mutate(d.id, () => ({ patch: { hidden: !!b.hidden }, result: true })); dropList(feedSt, d.key);
+      return send(res, 200, { ok: true, hidden: !!b.hidden });
+    }
+    if (m[2] === '/report') {
+      if (!rateOk('r:i:' + ip, LIM.reportPerIp)) throw httpErr(429, '신고가 너무 많아요. 잠시 뒤에 해 주세요');
+      if (d.ownerHash === me) throw httpErr(400, '내 글은 신고 대신 지우면 돼요');
+      const r = await feedSt.report(d.id, 't:' + me, 'i:' + hash('ip:' + ip));
+      if (!r) throw httpErr(404, '이미 지워진 글이에요');
+      dropList(feedSt, d.key);
+      return send(res, 200, { ok: true, already: !!r.already, hidden: !!r.hidden, counted: !!r.counted });
+    }
+    if (m[2] === '/react') {
+      // 공감: 종류마다 기기 하나에 한 번, 다시 누르면 취소
+      if (!RXS.includes(b.type)) throw httpErr(400, '공감 종류가 이상해요');
+      if (!rateOk('v:t:' + b.token, LIM.votePerDevice) || !rateOk('v:i:' + ip, LIM.votePerIp)) throw httpErr(429, '너무 빨리 누르고 있어요');
+      const vid = VOTE_ID(me), mark = b.type + ':' + vid;
+      const r = await feedSt.mutate(d.id, x => {
+        const has = (x.rx || []).includes(mark);
+        if (!has && (x.rx || []).length >= 900) return { result: { doc: x } };
+        const rx = has ? x.rx.filter(v => v !== mark) : [...(x.rx || []), mark];
+        return { patch: { rx }, result: { doc: { ...x, rx } } };
+      });
+      if (!r) throw httpErr(404, '이미 지워진 글이에요');
+      dropList(feedSt, d.key);
+      const o = feedPub(r.doc, me, isT, false);
+      return send(res, 200, { rx: o.rx, myRx: o.myRx });
+    }
+    // 댓글 쓰기 (pid가 있으면 답글)
+    const bb = b;
+    const lim = [['c:t:' + bb.token, 6, MIN], ['p:i:' + ip, LIM.postPerIp, MIN], ['p:ih:' + ip, LIM.postPerIpHour, HOUR]];
+    if (!lim.every(([k, max, win]) => rateOk(k, max, false, win))) throw httpErr(429, '너무 빨리 쓰고 있어요. 잠시 뒤에 해 주세요');
+    if (!isT && (await getCfg(d.key)).locked) throw httpErr(403, '선생님이 지금은 글쓰기를 잠가 두었어요');
+    const t = cleanText(bb.text, FEED.cmt, false), n = cleanText(bb.nick, LIM.nick, true);
+    if (t.tooLong) throw httpErr(400, `댓글은 ${FEED.cmt}자까지예요`);
+    if (!t.text) throw httpErr(400, '댓글을 써 주세요');
+    if (n.tooLong) throw httpErr(400, `닉네임은 ${LIM.nick}자까지예요`);
+    const all = await listOf(cmtSt, d.id);
+    if (all.length >= FEED.maxCmts) throw httpErr(429, '댓글이 꽉 찼어요');
+    let pid = '';
+    if (bb.pid) { const par = all.find(c => c.id === String(bb.pid)); if (!par) throw httpErr(400, '답글을 달 댓글이 없어요'); pid = par.pid || par.id; }   // 답글의 답글은 같은 줄에
+    lim.forEach(([k, max, win]) => rateOk(k, max, true, win));
+    const c = { id: crypto.randomBytes(10).toString('hex'), key: d.id, pid, text: t.text, nick: isT ? T.name + ' 선생님' : (n.text || '익명'),
+      createdAt: Date.now(), ownerHash: me, reports: 0, reporters: [], ipVotes: [], hidden: false, ...(isT ? { teacher: true } : {}) };
+    await cmtSt.create(c); dropList(cmtSt, d.id);
+    await feedSt.mutate(d.id, x => ({ patch: { ncm: (x.ncm || 0) + 1 }, result: true })); dropList(feedSt, d.key);
+    return send(res, 201, { comment: cmtPub(normDoc(c), me, isT) });
+  }
+  m = p.match(/^\/api\/comment\/([a-f0-9]{20})(\/report|\/hide)?$/);
+  if (m && ((req.method === 'DELETE' && !m[2]) || (req.method === 'POST' && m[2]))) {
+    if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
+    const b = await readJson(req, 4096);
+    if (!validToken(b.token)) throw httpErr(400, '기기 토큰이 없어요');
+    const me = hash(b.token), ip = clientIp(req);
+    const c = await cmtSt.get(m[1]);
+    const post = c && await feedSt.get(c.key);
+    const T = await teacherOf(req), isT = !!T && !!post && T.school === post.school;
+    if (!c || !post || c.gone || (c.hidden && !isT)) throw httpErr(404, '이미 지워진 댓글이에요');
+    if (m[2] === '/report') {
+      if (!rateOk('r:i:' + ip, LIM.reportPerIp)) throw httpErr(429, '신고가 너무 많아요. 잠시 뒤에 해 주세요');
+      if (c.ownerHash === me) throw httpErr(400, '내 댓글은 신고 대신 지우면 돼요');
+      const r = await cmtSt.report(c.id, 't:' + me, 'i:' + hash('ip:' + ip)); dropList(cmtSt, c.key);
+      return send(res, 200, { ok: true, already: !!(r && r.already), hidden: !!(r && r.hidden) });
+    }
+    if (m[2] === '/hide') {
+      if (!isT) throw httpErr(403, '선생님만 할 수 있어요');
+      await cmtSt.mutate(c.id, () => ({ patch: { hidden: !!b.hidden }, result: true })); dropList(cmtSt, c.key);
+      return send(res, 200, { ok: true });
+    }
+    if (c.ownerHash !== me && !isT) throw httpErr(403, '내가 쓴 댓글만 지울 수 있어요');
+    // 답글이 달린 댓글은 '지운 댓글'로 남겨 대화가 끊기지 않게
+    const hasReply = !c.pid && (await listOf(cmtSt, c.key)).some(x => x.pid === c.id && !x.gone);
+    if (hasReply) await cmtSt.mutate(c.id, () => ({ patch: { gone: true, text: '' }, result: true }));
+    else await cmtSt.remove(c.id);
+    dropList(cmtSt, c.key);
+    await feedSt.mutate(post.id, x => ({ patch: { ncm: Math.max(0, (x.ncm || 0) - 1) }, result: true })); dropList(feedSt, post.key);
+    return send(res, 200, { ok: true });
+  }
+  // 사진 올리기: 앱이 줄이고 다시 그린 사진(위치 정보 없음)을 base64로
+  if (p === '/api/img' && req.method === 'POST') {
+    if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
+    const b = await readJson(req, FEED.imgB64 + 4096);
+    const ip = clientIp(req);
+    if (!rateOk('i:t:' + b.token, 12, false, 10 * MIN) || !rateOk('i:i:' + ip, 120, false, HOUR)) throw httpErr(429, '사진을 너무 많이 올리고 있어요. 잠시 뒤에 해 주세요');
+    const { key } = await postFeedCheck(req, b);
+    const data = String(b.data || '');
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data) || data.length > FEED.imgB64) throw httpErr(413, '사진이 너무 커요');
+    const head = Buffer.from(data.slice(0, 24), 'base64'), kind = IMG_MAGIC.find(([, f]) => f(head));
+    if (!kind) throw httpErr(400, '사진 파일이 아니에요');
+    rateOk('i:t:' + b.token, 12, true, 10 * MIN); rateOk('i:i:' + ip, 120, true, HOUR);
+    const doc = { id: crypto.randomBytes(10).toString('hex'), key, data, mime: kind[0], ownerHash: hash(b.token), createdAt: Date.now(), reports: 0, reporters: [], ipVotes: [], hidden: false };
+    await imgSt.create(doc);
+    return send(res, 201, { id: doc.id });
+  }
+  m = p.match(/^\/api\/img\/([a-f0-9]{20})$/);
+  if (m && req.method === 'GET') {
+    let v = imgCache.get(m[1]);
+    if (!v) {
+      costGate('store');
+      const d = await imgSt.get(m[1]);
+      if (!d || !d.data) { res.writeHead(404, { 'Cache-Control': 'no-store' }); return res.end(); }
+      v = { buf: Buffer.from(d.data, 'base64'), mime: d.mime || 'image/jpeg' }; imgCachePut(m[1], v);
+    }
+    res.writeHead(200, { 'Content-Type': v.mime, 'Content-Length': v.buf.length, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+    return res.end(v.buf);
+  }
+
   // ---------- 선생님 로그인·반 잠금 ----------
   if (p === '/api/teacher/login' && req.method === 'POST') {
     if (!sameOrigin(req)) throw httpErr(403, '허용되지 않은 요청');
@@ -986,7 +1197,7 @@ const server = http.createServer(async (req, res) => {
 
 (async () => {
   const make = await pickStore();
-  store = make(COL); board = make(BOARD_COL); teachersSt = make('teachers'); cfgSt = make('classcfg');
+  store = make(COL); board = make(BOARD_COL); teachersSt = make('teachers'); cfgSt = make('classcfg'); feedSt = make('feed'); cmtSt = make('comments'); imgSt = make('images');
   server.listen(PORT, () => console.log(`우리반 시간표 서버 :${PORT} (메모 저장: ${store.mode})`));
   getSchools().catch(e => console.warn('학교 목록 미리 받기 실패:', e.message));
 })();

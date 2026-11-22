@@ -684,6 +684,110 @@ body[data-mode="week"][data-wv="meal"] .mweek{display:block}
 .share{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin:12px 0 0;padding:13px;border-radius:18px;background:var(--card);box-shadow:var(--hl),var(--elev);font-size:15px;font-weight:700;color:var(--accent);min-height:48px}
 .imgout{display:block;width:100%;border-radius:16px;margin:4px 0 10px;box-shadow:0 6px 20px -8px rgba(0,0,0,.3);background:#fff}
 #imgDl{display:flex;align-items:center;justify-content:center;text-decoration:none}
+
+/* ================= 반 소식 (블로그식 글) ================= */
+.bvseg{display:none;margin:0 0 12px}
+body[data-mode="board"] .bvseg{display:flex}
+.feed{display:none}
+body[data-mode="board"][data-bv="feed"] .feed{display:block}
+body[data-mode="board"][data-bv="feed"] .board{display:none}
+.fhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 12px}
+.fcats{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.fcats::-webkit-scrollbar{display:none}
+.fcats button{flex:none;padding:8px 14px;border-radius:999px;background:var(--card);box-shadow:var(--hl),var(--elev);font-size:14px;font-weight:600;color:var(--sub);min-height:38px;transition:background-color 160ms var(--ease-out),color 160ms var(--ease-out)}
+.fcats button.on{background:var(--pill);color:var(--pill-ink)}
+.fsort{flex:none;font-size:13px;font-weight:700;color:var(--sub);padding:8px 4px;min-height:38px}
+.fcard{display:block;width:100%;text-align:left;background:var(--card);border-radius:22px;box-shadow:var(--hl),var(--elev);padding:14px 16px 12px;margin-bottom:10px;cursor:pointer;transition:transform 140ms var(--ease-out),filter 140ms var(--ease-out)}
+.fcard:active{transform:scale(.98);filter:brightness(.97)}
+.fcard.tch{box-shadow:inset 0 0 0 2px var(--accent),var(--elev)}
+.fcard.hid{opacity:.55}
+.fm{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--sub);margin-bottom:6px}
+.fcat{font-size:11.5px;font-weight:800;padding:3px 8px;border-radius:7px;background:var(--soft);color:var(--accent)}
+.fcat.c-qna{background:color-mix(in srgb,#8b5cf6 14%,var(--card));color:#7c4ddb}
+.fcat.c-info{background:color-mix(in srgb,#10b981 14%,var(--card));color:#0e8a63}
+.fcat.t{background:var(--accent);color:var(--accent-ink)}
+.fb{display:flex;gap:12px;align-items:flex-start}
+.ft{flex:1;min-width:0}
+.ft h4{margin:0 0 4px;font-size:16.5px;font-weight:700;line-height:1.35;word-break:keep-all;overflow-wrap:anywhere}
+.ft p{margin:0;font-size:14.5px;color:var(--sub);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.fth{flex:none;position:relative;width:76px;height:76px;border-radius:16px;overflow:hidden;background:var(--bg)}
+.fth img{width:100%;height:100%;object-fit:cover;display:block}
+.fth b{position:absolute;right:5px;bottom:5px;font-size:11.5px;color:#fff;background:rgba(0,0,0,.55);border-radius:7px;padding:1px 6px}
+.fx{display:flex;gap:14px;margin-top:10px;font-size:13px;color:var(--sub);font-weight:600}
+.fx .on{color:var(--memo)}
+.fx .hb{color:var(--memo)}
+.fempty{text-align:center;padding:40px 16px;color:var(--sub);font-size:14.5px;line-height:1.6}
+.fempty b{display:block;color:var(--ink);font-size:17px;margin-bottom:2px}
+.fempty button{display:inline-flex;margin-top:14px;padding:11px 18px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-weight:700;min-height:44px}
+.fsk{height:104px;border-radius:22px;background:var(--card);margin-bottom:10px;position:relative;overflow:hidden}
+.fsk::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--ink) 5%,transparent) 50%,transparent 70%);transform:translateX(-100%);animation:skel 1.3s ease-in-out infinite}
+@keyframes skel{to{transform:translateX(100%)}}
+.fab{position:fixed;right:calc(18px + var(--sa-right,env(safe-area-inset-right)));bottom:calc(96px + var(--sa-bottom,env(safe-area-inset-bottom)));z-index:25;
+  display:flex;align-items:center;gap:6px;padding:14px 20px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:15.5px;font-weight:800;
+  box-shadow:0 10px 24px -8px var(--accent),inset 0 1px 0 rgba(255,255,255,.25);transition:transform 160ms var(--ease-out)}
+.fab:active{transform:scale(.95)}
+.feed .more{display:block;margin:6px auto 0;color:var(--sub);font-size:13px}
+
+/* 글쓰기 */
+.cnt{display:block;text-align:right;font-size:12px;color:var(--sub);margin-top:4px}
+.sub2{font-weight:500;color:var(--sub)}
+.wimgs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.wimgs .wi,.wimgs .wa{position:relative;aspect-ratio:1;border-radius:14px;overflow:hidden;background:var(--bg)}
+.wimgs .wi img{width:100%;height:100%;object-fit:cover;display:block}
+.wimgs .wi.up::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.wimgs .wi.up .spin{position:absolute;left:50%;top:50%;margin:-9px 0 0 -9px;z-index:1}
+.wimgs .wi button{position:absolute;right:4px;top:4px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:26px;text-align:center;z-index:2}
+.wimgs .wa{display:grid;place-items:center;border:2px dashed var(--line);font-size:13px;color:var(--sub);font-weight:600;text-align:center;line-height:1.3}
+
+/* 글 보기 */
+dialog.pview{height:calc(100dvh - var(--sa-top,env(safe-area-inset-top)) - 24px);max-height:none;display:flex;flex-direction:column;padding-bottom:0}
+dialog.pview:not([open]){display:none}
+.pvscroll{flex:1;overflow-y:auto;overscroll-behavior:contain;margin:0 -20px;padding:0 20px 16px}
+.pvtext{font-size:16px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0 14px;user-select:text;-webkit-user-select:text}
+.pvimgs{display:grid;gap:6px;margin:0 0 14px;border-radius:18px;overflow:hidden}
+.pvimgs.n2,.pvimgs.n4{grid-template-columns:1fr 1fr}
+.pvimgs.n3{grid-template-columns:1fr 1fr}.pvimgs.n3 button:first-child{grid-column:1/-1}
+.pvimgs button{display:block;padding:0;background:var(--bg);aspect-ratio:4/3;overflow:hidden}
+.pvimgs.n1 button{aspect-ratio:auto;max-height:420px}
+.pvimgs img{width:100%;height:100%;object-fit:cover;display:block}
+.pvimgs.n1 img{object-fit:contain;max-height:420px;background:var(--bg)}
+.rxbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 6px}
+.rxbar button{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:var(--bg);font-size:15px;font-weight:700;min-height:40px;transition:background-color 160ms var(--ease-out),transform 140ms var(--ease-out)}
+.rxbar button:active{transform:scale(.94)}
+.rxbar button.on{background:color-mix(in srgb,var(--memo) 16%,var(--card));color:var(--memo)}
+.pvact{display:flex;gap:14px;justify-content:flex-end;margin:4px 0 8px}
+.pvact button{font-size:13px;color:var(--sub);font-weight:600;padding:6px 0;min-height:32px}
+.pvact button.warn{color:var(--memo)}
+.chd{font-size:14px;font-weight:700;color:var(--sub);margin:14px 0 6px;padding-top:14px;border-top:1px solid var(--line)}
+.cmt{padding:10px 0}
+.cmt + .cmt{border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.cmt.re{margin-left:28px;padding-left:12px;border-left:2px solid var(--line);border-top:0!important}
+.cmt .cn{font-size:13px;font-weight:700;display:flex;gap:6px;align-items:center}
+.cmt .cn small{font-weight:500;color:var(--sub)}
+.cmt .cn .tb{font-size:10.5px;padding:1px 6px;border-radius:6px;background:var(--accent);color:var(--accent-ink)}
+.cmt p{margin:3px 0 4px;font-size:15px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.cmt.gone p{color:var(--sub);font-style:italic}
+.cmt .ca{display:flex;gap:12px}
+.cmt .ca button{font-size:12.5px;color:var(--sub);font-weight:600;padding:4px 0;min-height:28px}
+.cmt.new{animation:cnew 900ms var(--ease-out)}
+@keyframes cnew{from{background:color-mix(in srgb,var(--accent) 12%,transparent)}}
+.cnone{color:var(--sub);font-size:14px;padding:6px 0 10px}
+.cbox{margin:0 -20px;padding:10px 14px calc(10px + var(--sa-bottom,env(safe-area-inset-bottom)));border-top:1px solid var(--line);background:var(--card)}
+.creply{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--accent);font-weight:600;margin:0 4px 8px}
+.creply button{color:var(--sub);font-size:13px}
+.crow{display:flex;gap:8px;align-items:flex-end}
+.crow textarea{flex:1;min-height:44px;max-height:120px;resize:none;font-size:16px;line-height:1.4;padding:11px 14px;border-radius:22px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.csend{flex:none;width:44px;height:44px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:20px;font-weight:800}
+.csend:disabled{opacity:.4}
+
+/* 사진 크게 */
+dialog.iview{max-width:none;width:100vw;height:100dvh;max-height:none;margin:0;padding:0;border-radius:0;background:#000;display:grid;place-items:center}
+dialog.iview:not([open]){display:none}
+dialog.iview::backdrop{background:#000}
+dialog.iview img{max-width:100%;max-height:100%;object-fit:contain}
+dialog.iview .grab{display:none}
+dialog.iview .x{position:absolute;top:calc(12px + var(--sa-top,env(safe-area-inset-top)));right:14px;background:rgba(255,255,255,.18);color:#fff}
+.ivn{position:absolute;bottom:calc(20px + var(--sa-bottom,env(safe-area-inset-bottom)));left:0;right:0;text-align:center;color:#fff;font-size:14px;font-weight:600}
 [hidden]{display:none!important}
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
 </style>
@@ -723,7 +827,9 @@ body[data-mode="week"][data-wv="meal"] .mweek{display:block}
 <div class="list" id="list"></div>
 <div class="grid" id="grid"></div>
 <div class="mweek" id="mealWeek"></div>
-<section class="board" id="board" aria-label="우리 반"></section>
+<div class="seg bvseg" id="bvSeg" role="tablist" aria-label="우리 반 보기"><button data-bv="feed" role="tab">반 소식</button><button data-bv="board" role="tab">알림판 · 일정 · 투표</button></div>
+<section class="feed" id="feed" aria-label="반 소식"></section>
+<section class="board" id="board" aria-label="우리 반 알림판"></section>
 <section class="setpage" id="setPage" aria-label="설정">
   <div class="sgt">우리 반</div>
   <div class="sgroup">
@@ -857,6 +963,32 @@ body[data-mode="week"][data-wv="meal"] .mweek{display:block}
   <p class="hint">우리 반 시간표를 보는 모두에게 보여요 · 욕설·전화번호·링크는 가려져요 · 신고 3번이면 숨겨져요</p>
   <div class="btns"><button id="pCancel">취소</button><button class="pri" id="pSend">올리기</button></div>
 </dialog>
+
+<!-- 반 소식: 글쓰기 -->
+<dialog id="writeDlg" aria-labelledby="wTitle">
+  <div class="dh"><div><small id="wWho"></small><h2 id="wTitle">글쓰기</h2></div><button class="x" id="wClose">닫기</button></div>
+  <div class="seg" id="wCat"><button data-c="free" class="on">자유</button><button data-c="qna">질문</button><button data-c="info">정보</button></div>
+  <div class="fld"><label for="wT">제목</label><input id="wT" maxlength="40" autocomplete="off" enterkeyhint="next"></div>
+  <div class="fld"><label for="wB">내용</label><textarea id="wB" maxlength="2000" rows="6" placeholder="질문, 정보, 하고 싶은 이야기를 자유롭게"></textarea><small class="cnt" id="wCnt">0 / 2000</small></div>
+  <div class="fld"><label>사진 <span class="sub2">(최대 4장)</span></label><div class="wimgs" id="wImgs"></div></div>
+  <input type="file" id="wFile" accept="image/*" multiple hidden>
+  <div class="fld"><label for="wNick">닉네임 (안 써도 돼요)</label><input id="wNick" maxlength="12" autocomplete="nickname"></div>
+  <p class="hint">같은 반 친구들 모두에게 보여요 · 친구 얼굴·이름표·개인정보가 나온 사진은 올리지 마세요 · 신고 3번이면 숨겨져요</p>
+  <div class="btns"><button id="wCancel">취소</button><button class="pri" id="wSend">올리기</button></div>
+</dialog>
+
+<!-- 반 소식: 글 보기 + 댓글 -->
+<dialog id="postView" class="pview" aria-labelledby="pvTitle">
+  <div class="dh"><div><small id="pvMeta"></small><h2 id="pvTitle"></h2></div><button class="x" id="pvClose">닫기</button></div>
+  <div class="pvscroll" id="pvBody"></div>
+  <div class="cbox">
+    <div class="creply" id="cReply" hidden></div>
+    <div class="crow"><textarea id="cText" rows="1" maxlength="300" placeholder="댓글 달기" enterkeyhint="send"></textarea><button class="csend" id="cSend" aria-label="댓글 보내기">↑</button></div>
+  </div>
+</dialog>
+
+<!-- 사진 크게 보기 -->
+<dialog id="imgView" class="iview" aria-label="사진 크게 보기"><img id="ivImg" alt=""><button class="x" id="ivClose">닫기</button><div class="ivn" id="ivN"></div></dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script src="app.js"></script>
